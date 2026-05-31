@@ -1,0 +1,35 @@
+#if !TARGET_OS_OSX
+
+#import <UIKit/UIKit.h>
+
+typedef UIView RNGHUIView;
+typedef UIWindow RNGHWindow;
+typedef UIScrollView RNGHScrollView;
+typedef UITouch RNGHUITouch;
+typedef UIScrollView RNGHUIScrollView;
+typedef UIColor RNGHColor;
+
+#define RNGHGestureRecognizerStateFailed UIGestureRecognizerStateFailed;
+#define RNGHGestureRecognizerStatePossible UIGestureRecognizerStatePossible;
+#define RNGHGestureRecognizerStateCancelled UIGestureRecognizerStateCancelled;
+#define RNGHGestureRecognizerStateBegan UIGestureRecognizerStateBegan;
+#define RNGHGestureRecognizerStateEnded UIGestureRecognizerStateEnded;
+
+#else // TARGET_OS_OSX [
+
+#import <React/RCTUIKit.h>
+
+typedef RCTUIView RNGHUIView;
+typedef NSWindow RNGHWindow;
+typedef NSScrollView RNGHScrollView;
+typedef RCTUITouch RNGHUITouch;
+typedef NSScrollView RNGHUIScrollView;
+typedef NSColor RNGHColor;
+
+#define RNGHGestureRecognizerStateFailed NSGestureRecognizerStateFailed;
+#define RNGHGestureRecognizerStatePossible NSGestureRecognizerStatePossible;
+#define RNGHGestureRecognizerStateCancelled NSGestureRecognizerStateCancelled;
+#define RNGHGestureRecognizerStateBegan NSGestureRecognizerStateBegan;
+#define RNGHGestureRecognizerStateEnded NSGestureRecognizerStateEnded;
+
+#endif // ] TARGET_OS_OSX

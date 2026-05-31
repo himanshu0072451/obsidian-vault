@@ -1,0 +1,4 @@
+import type { ReanimatedHandler } from '../../../handlers/gestures/reanimatedWrapper';
+import type { ChangeCalculatorType, GestureCallbacks, GestureEvent } from '../../types';
+export declare function useReanimatedEventHandler<THandlerData, TExtendedHandlerData extends THandlerData>(handlerTag: number, handlers: GestureCallbacks<THandlerData, TExtendedHandlerData>, reanimatedHandler: ReanimatedHandler<TExtendedHandlerData> | undefined, changeEventCalculator: ChangeCalculatorType<TExtendedHandlerData> | undefined, fillInDefaultValues?: (event: GestureEvent<TExtendedHandlerData>) => void): ((event: unknown) => void) | undefined;
+//# sourceMappingURL=useReanimatedEventHandler.d.ts.map

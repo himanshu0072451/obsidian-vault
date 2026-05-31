@@ -1,0 +1,5 @@
+import type { BaseGestureConfig, ExcludeInternalConfigProps, SingleGestureName } from '../../types';
+export declare function resolveInternalConfigProps<TConfig extends object, THandlerData, TExtendedHandlerData extends THandlerData>(config: BaseGestureConfig<TConfig, THandlerData, TExtendedHandlerData>): void;
+export declare function prepareConfigForNativeSide<TConfig extends object, THandlerData, TExtendedHandlerData extends THandlerData>(handlerType: SingleGestureName, config: BaseGestureConfig<TConfig, THandlerData, TExtendedHandlerData>): BaseGestureConfig<TConfig, THandlerData, TExtendedHandlerData>;
+export declare function useClonedAndRemappedConfig<TConfig extends Record<string, unknown>, THandlerData, TInternalConfig extends Record<string, unknown> = TConfig, TExtendedHandlerData extends THandlerData = THandlerData>(config: ExcludeInternalConfigProps<BaseGestureConfig<TConfig, THandlerData, TExtendedHandlerData>>, propsMapping?: ReadonlyMap<string, string>, propsTransformer?: (config: TInternalConfig) => TInternalConfig): BaseGestureConfig<TInternalConfig, THandlerData, TExtendedHandlerData>;
+//# sourceMappingURL=configUtils.d.ts.map

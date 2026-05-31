@@ -1,0 +1,7 @@
+import type { GestureTouchEvent } from '../../../handlers/gestureHandlerCommon';
+import type { ReanimatedContext } from '../../../handlers/gestures/reanimatedWrapper';
+import type { ChangeCalculatorType, GestureCallbacks, GestureEvent, GestureHandlerEventWithHandlerData, GestureUpdateEventWithHandlerData } from '../../types';
+export declare function handleUpdateEvent<THandlerData, TExtendedHandlerData extends THandlerData>(eventWithData: GestureUpdateEventWithHandlerData<TExtendedHandlerData>, handlers: GestureCallbacks<THandlerData, TExtendedHandlerData>, changeEventCalculator: ChangeCalculatorType<TExtendedHandlerData> | undefined, context: ReanimatedContext<TExtendedHandlerData>): void;
+export declare function handleTouchEvent<THandlerData, TExtendedHandlerData extends THandlerData>(event: GestureTouchEvent, handlers: GestureCallbacks<THandlerData, TExtendedHandlerData>): void;
+export declare function eventHandler<THandlerData, TExtendedHandlerData extends THandlerData>(handlerTag: number, sourceEvent: GestureHandlerEventWithHandlerData<THandlerData, TExtendedHandlerData>, handlers: GestureCallbacks<THandlerData, TExtendedHandlerData>, changeEventCalculator: ChangeCalculatorType<TExtendedHandlerData> | undefined, jsContext: ReanimatedContext<TExtendedHandlerData>, dispatchesAnimatedEvents: boolean, fillInDefaultValues?: (event: GestureEvent<TExtendedHandlerData>) => void): void;
+//# sourceMappingURL=eventHandler.d.ts.map

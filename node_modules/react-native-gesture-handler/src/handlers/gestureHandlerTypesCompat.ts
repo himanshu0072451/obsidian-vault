@@ -1,0 +1,115 @@
+import type {
+  LegacyBaseButtonProps,
+  LegacyBorderlessButtonProps,
+  LegacyRawButtonProps,
+  LegacyRectButtonProps,
+} from '../components/GestureButtonsProps';
+import type { FlingGestureHandlerProps } from './FlingGestureHandler';
+import type { ForceTouchGestureHandlerProps } from './ForceTouchGestureHandler';
+import type {
+  GestureEvent,
+  GestureEventPayload,
+  HandlerStateChangeEvent,
+  HandlerStateChangeEventPayload,
+} from './gestureHandlerCommon';
+import type {
+  FlingGestureHandlerEventPayload,
+  ForceTouchGestureHandlerEventPayload,
+  LongPressGestureHandlerEventPayload,
+  NativeViewGestureHandlerPayload,
+  PanGestureHandlerEventPayload,
+  PinchGestureHandlerEventPayload,
+  RotationGestureHandlerEventPayload,
+  TapGestureHandlerEventPayload,
+} from './GestureHandlerEventPayload';
+import type { LongPressGestureHandlerProps } from './LongPressGestureHandler';
+import type { NativeViewGestureHandlerProps } from './NativeViewGestureHandler';
+import type { PanGestureHandlerProps } from './PanGestureHandler';
+import type { PinchGestureHandlerProps } from './PinchGestureHandler';
+import type { RotationGestureHandlerProps } from './RotationGestureHandler';
+import type { TapGestureHandlerProps } from './TapGestureHandler';
+
+// Events
+export type GestureHandlerGestureEventNativeEvent = GestureEventPayload;
+export type GestureHandlerStateChangeNativeEvent =
+  HandlerStateChangeEventPayload;
+export type GestureHandlerGestureEvent = GestureEvent;
+export type GestureHandlerStateChangeEvent = HandlerStateChangeEvent;
+// Gesture handlers events
+export type NativeViewGestureHandlerGestureEvent =
+  GestureEvent<NativeViewGestureHandlerPayload>;
+export type NativeViewGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<NativeViewGestureHandlerPayload>;
+
+export type TapGestureHandlerGestureEvent =
+  GestureEvent<TapGestureHandlerEventPayload>;
+export type TapGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<TapGestureHandlerEventPayload>;
+
+/**
+ * @deprecated ForceTouchGestureHandler is deprecated and will be removed in the future.
+ */
+export type ForceTouchGestureHandlerGestureEvent =
+  GestureEvent<ForceTouchGestureHandlerEventPayload>;
+/**
+ * @deprecated ForceTouchGestureHandler is deprecated and will be removed in the future.
+ */
+export type ForceTouchGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<ForceTouchGestureHandlerEventPayload>;
+
+export type LongPressGestureHandlerGestureEvent =
+  GestureEvent<LongPressGestureHandlerEventPayload>;
+export type LongPressGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<LongPressGestureHandlerEventPayload>;
+
+export type PanGestureHandlerGestureEvent =
+  GestureEvent<PanGestureHandlerEventPayload>;
+export type PanGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<PanGestureHandlerEventPayload>;
+
+export type PinchGestureHandlerGestureEvent =
+  GestureEvent<PinchGestureHandlerEventPayload>;
+export type PinchGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<PinchGestureHandlerEventPayload>;
+
+export type RotationGestureHandlerGestureEvent =
+  GestureEvent<RotationGestureHandlerEventPayload>;
+export type RotationGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<RotationGestureHandlerEventPayload>;
+
+export type FlingGestureHandlerGestureEvent =
+  GestureEvent<FlingGestureHandlerEventPayload>;
+export type FlingGestureHandlerStateChangeEvent =
+  HandlerStateChangeEvent<FlingGestureHandlerEventPayload>;
+
+// Handlers properties
+export type NativeViewGestureHandlerProperties = NativeViewGestureHandlerProps;
+export type TapGestureHandlerProperties = TapGestureHandlerProps;
+export type LongPressGestureHandlerProperties = LongPressGestureHandlerProps;
+export type PanGestureHandlerProperties = PanGestureHandlerProps;
+export type PinchGestureHandlerProperties = PinchGestureHandlerProps;
+export type RotationGestureHandlerProperties = RotationGestureHandlerProps;
+export type FlingGestureHandlerProperties = FlingGestureHandlerProps;
+/**
+ * @deprecated ForceTouch gesture is deprecated and will be removed in the future.
+ */
+export type ForceTouchGestureHandlerProperties = ForceTouchGestureHandlerProps;
+
+// Button props
+
+/**
+ * @deprecated Use RawButtonProperties instead
+ */
+export type LegacyRawButtonProperties = LegacyRawButtonProps;
+/**
+ * @deprecated Use BaseButtonProperties instead
+ */
+export type LegacyBaseButtonProperties = LegacyBaseButtonProps;
+/**
+ * @deprecated Use RectButtonProperties instead
+ */
+export type LegacyRectButtonProperties = LegacyRectButtonProps;
+/**
+ * @deprecated Use BorderlessButtonProperties instead
+ */
+export type LegacyBorderlessButtonProperties = LegacyBorderlessButtonProps;

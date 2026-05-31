@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Obsidian",
+    "newArchEnabled": true,
+    "slug": "Obsidian",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.himanshu.obsidian",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Obsidian needs access to your photo library to encrypt and decrypt images.",
+        "NSPhotoLibraryAddUsageDescription": "Obsidian needs permission to save decrypted images to your photo library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0a0a"
+      },
+      "package": "com.himanshu.obsidian",
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Obsidian needs access to your photo library."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Obsidian needs access to save decrypted images.",
+          "savePhotosPermission": "Obsidian needs permission to save images to your library."
+        }
+      ],
+      "expo-asset"
+    ],
+    "scheme": "obsidian",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4ebb3007-6e2b-4fb8-b04d-917b4c81805d"
+      }
+    },
+    "owner": "him4nshudevs-organization"
+  }
+}

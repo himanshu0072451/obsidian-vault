@@ -1,0 +1,1 @@
+{"version":3,"names":["GestureDetectorType","GestureDetector","InterceptingGestureDetector","VirtualDetector","VirtualGestureDetector"],"sourceRoot":"../../../../src","sources":["v3/detectors/index.ts"],"mappings":";;AACA,SAASA,mBAAmB,QAAQ,UAAU;AAC9C,SAASC,eAAe,QAAQ,mBAAmB;AACnD,SAASC,2BAA2B,QAAQ,+CAA+C;AAC3F,SAASC,eAAe,IAAIC,sBAAsB,QAAQ,mCAAmC","ignoreList":[]}

@@ -1,0 +1,49 @@
+import RNGestureHandlerModule from '../RNGestureHandlerModule';
+import type {
+  BaseGestureConfig,
+  GestureRelations,
+  SingleGestureName,
+} from './types';
+
+export const NativeProxy = {
+  createGestureHandler: <T extends Record<string, unknown>>(
+    handlerName: SingleGestureName,
+    handlerTag: number,
+    config?: T
+  ) => {
+    RNGestureHandlerModule.createGestureHandler(
+      handlerName,
+      handlerTag,
+      config || {}
+    );
+  },
+  setGestureHandlerConfig: <
+    TConfig,
+    THandlerData,
+    TExtendedHandlerData extends THandlerData,
+  >(
+    handlerTag: number,
+    newConfig: BaseGestureConfig<TConfig, THandlerData, TExtendedHandlerData>
+  ) => {
+    RNGestureHandlerModule.setGestureHandlerConfig(handlerTag, newConfig);
+  },
+  updateGestureHandlerConfig: <
+    TConfig,
+    THandlerData,
+    TExtendedHandlerData extends THandlerData,
+  >(
+    handlerTag: number,
+    newConfig: BaseGestureConfig<TConfig, THandlerData, TExtendedHandlerData>
+  ) => {
+    RNGestureHandlerModule.updateGestureHandlerConfig(handlerTag, newConfig);
+  },
+  dropGestureHandler: (handlerTag: number) => {
+    RNGestureHandlerModule.dropGestureHandler(handlerTag);
+  },
+  configureRelations: (handlerTag: number, relations: GestureRelations) => {
+    RNGestureHandlerModule.configureRelations(handlerTag, relations);
+  },
+  installUIRuntimeBindings: () => {
+    return RNGestureHandlerModule.installUIRuntimeBindings();
+  },
+} as const;

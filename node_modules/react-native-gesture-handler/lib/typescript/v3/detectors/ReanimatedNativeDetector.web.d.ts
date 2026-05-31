@@ -1,0 +1,2 @@
+export declare const ReanimatedNativeDetector: import("react").ComponentClass<import("./HostGestureDetector").RNGestureHandlerDetectorNativeComponentProps, any> | undefined;
+//# sourceMappingURL=ReanimatedNativeDetector.web.d.ts.map
