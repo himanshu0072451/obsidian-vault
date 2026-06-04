@@ -2,7 +2,7 @@
   "expo": {
     "name": "Obsidian",
     "newArchEnabled": true,
-    "slug": "Obsidian",
+    "slug": "obsidian",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -52,11 +52,11 @@
     "experiments": {
       "typedRoutes": true
     },
+    "owner": "him4nshudevs-organization",
     "extra": {
       "eas": {
-        "projectId": "4ebb3007-6e2b-4fb8-b04d-917b4c81805d"
+        "projectId": "51804e0f-ebe4-4edf-b82e-26cb9357462a"
       }
-    },
-    "owner": "him4nshudevs-organization"
+    }
   }
 }

@@ -1,1 +1,0 @@
-{"version":3,"file":"gestureStateManager.web.d.ts","sourceRoot":"","sources":["../../../../src/handlers/gestures/gestureStateManager.web.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,uBAAuB,EAAE,MAAM,uBAAuB,CAAC;AAErE,eAAO,MAAM,mBAAmB;uBACX,MAAM,GAAG,uBAAuB;CA6BpD,CAAC"}

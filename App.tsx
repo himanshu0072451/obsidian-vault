@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import LockScreen from "./screens/LockScreen";
 import HomeScreen from "./screens/HomeScreen";
 import { Colors } from "./utils/design";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 function AppNavigator() {
   const { isUnlocked, isLoading } = useAuth();
@@ -24,10 +25,12 @@ function AppNavigator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
-      <AppNavigator />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <StatusBar style="light" />
+        <AppNavigator />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
 

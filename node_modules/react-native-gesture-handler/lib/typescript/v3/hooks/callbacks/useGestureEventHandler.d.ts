@@ -1,3 +1,0 @@
-import type { BaseGestureConfig, GestureCallbacks, GestureHandlerEventWithHandlerData } from '../../types';
-export declare function useGestureEventHandler<TConfig, THandlerData, TExtendedHandlerData extends THandlerData>(handlerTag: number, handlers: GestureCallbacks<THandlerData, TExtendedHandlerData>, config: BaseGestureConfig<TConfig, THandlerData, TExtendedHandlerData>): (event: GestureHandlerEventWithHandlerData<THandlerData, TExtendedHandlerData>) => void;
-//# sourceMappingURL=useGestureEventHandler.d.ts.map

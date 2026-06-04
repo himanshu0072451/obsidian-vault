@@ -1,1 +1,0 @@
-{"version":3,"file":"GestureLifecycleEvents.d.ts","sourceRoot":"","sources":["../../../../src/web/tools/GestureLifecycleEvents.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,qBAAqB;;;CAGxB,CAAC;AAEX,MAAM,MAAM,yBAAyB,GACnC,CAAC,OAAO,qBAAqB,CAAC,CAAC,MAAM,OAAO,qBAAqB,CAAC,CAAC;AAErE,wBAAgB,6BAA6B,CAC3C,IAAI,EAAE,WAAW,GAAG,IAAI,GAAG,SAAS,EACpC,IAAI,EAAE,yBAAyB,GAC9B,IAAI,CAEN"}

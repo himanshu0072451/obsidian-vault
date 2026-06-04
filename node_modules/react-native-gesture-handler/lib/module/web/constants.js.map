@@ -1,1 +1,0 @@
-{"version":3,"names":["DEFAULT_TOUCH_SLOP","MINIMAL_RECOGNIZABLE_MAGNITUDE","NATIVE_GESTURE_ROLE_ATTRIBUTE"],"sourceRoot":"../../../src","sources":["web/constants.ts"],"mappings":";;AAAA,OAAO,MAAMA,kBAAkB,GAAG,EAAE;AACpC,OAAO,MAAMC,8BAA8B,GAAG,GAAG;AACjD,OAAO,MAAMC,6BAA6B,GAAG,WAAW","ignoreList":[]}

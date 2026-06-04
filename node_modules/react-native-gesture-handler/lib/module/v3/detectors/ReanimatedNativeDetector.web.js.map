@@ -1,1 +1,0 @@
-{"version":3,"names":["Reanimated","HostGestureDetector","ReanimatedNativeDetector","default","createAnimatedComponent"],"sourceRoot":"../../../../src","sources":["v3/detectors/ReanimatedNativeDetector.web.tsx"],"mappings":";;AAAA,SAASA,UAAU,QAAQ,2CAA2C;AACtE,OAAOC,mBAAmB,MAAM,uBAAuB;AAEvD,OAAO,MAAMC,wBAAwB,GACnCF,UAAU,EAAEG,OAAO,CAACC,uBAAuB,CAACH,mBAAmB,CAAC","ignoreList":[]}

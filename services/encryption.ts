@@ -10,7 +10,7 @@ import * as Crypto from "expo-crypto";
 export const VAULT_EXTENSION = ".vault";
 
 // PBKDF2 parameters
-const PBKDF2_ITERATIONS = 2_000;
+const PBKDF2_ITERATIONS = 10000;
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits
 const SALT_LENGTH = 32;
