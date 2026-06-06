@@ -616,16 +616,21 @@ import { useAuth } from "../hooks/useAuth";
 import { useVaultOperations } from "../hooks/useVaultOperations";
 import { ProgressOverlay } from "../components/ProgressOverlay";
 import { Card, StatCard } from "../components/Card";
-import { getVaultFiles, VaultFile, deleteVaultFile } from "../services/storage";
+// import { getVaultFiles, VaultFile, deleteVaultFile } from "../services/storage/storage";
+import { useVault } from "../hooks/useAuth";
+import type { VaultFile } from "../services/storage";
 import { decryptImage } from "../services/encryption";
 import * as FileSystem from "expo-file-system";
 import ImageViewer from "../components/ImageViewer";
 import * as MediaLibrary from "expo-media-library";
+import Aes from "react-native-aes-crypto";
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+  console.log(Aes);
   const { lock, passcode } = useAuth();
+  const vault = useVault();
   const {
     encryptOp,
     decryptOp,
@@ -654,10 +659,20 @@ export default function HomeScreen() {
 
   // ─── Data loading ────────────────────────────────────────────────────────
 
+  // const loadFiles = useCallback(async () => {
+  //   const files = await getVaultFiles();
+  //   console.log("Loaded vault files:", files);
+  //   setVaultFiles(files);
+  // }, []);
+
   const loadFiles = useCallback(async () => {
-    const files = await getVaultFiles();
+    const files = await vault.getVaultFiles();
+
+    // console.log("ACTIVE VAULT:", vault);
+    // console.log("FILES FOUND:", files);
+
     setVaultFiles(files);
-  }, []);
+  }, [vault]);
 
   useEffect(() => {
     loadFiles();
@@ -743,7 +758,8 @@ export default function HomeScreen() {
             text: "Delete",
             style: "destructive",
             onPress: async () => {
-              await deleteVaultFile(file.uri);
+              // await deleteVaultFile(file.uri);
+              await vault.deleteVaultFile(file.uri);
               await loadFiles();
             },
           },
@@ -800,6 +816,7 @@ export default function HomeScreen() {
   //   }
   // };
 
+  // console.log("Vault files:", vaultFiles);
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView

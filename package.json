@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "pbkdf2": "^3.1.2",
     "react": "18.3.1",
     "react-native": "0.76.9",
+    "react-native-aes-crypto": "^3.3.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-image-viewing": "^0.2.2",
     "react-native-reanimated": "~3.16.1",
