@@ -99,15 +99,34 @@ export class VaultStorage {
     return albums.sort();
   }
 
-  /** Create an album directory. Idempotent. */
+  /** Create an album directory. Throws if the album already exists. */
   async createAlbum(albumName: string): Promise<string> {
-    return this.ensureAlbumDir(albumName);
+    const dir = `${this.rootDir}${this._safeAlbumName(albumName)}/`;
+    const info = await FileSystem.getInfoAsync(dir);
+    if (info.exists) {
+      throw new Error(`ALBUM_ALREADY_EXISTS:${albumName}`);
+    }
+    await this._ensureDir(dir);
+    return dir;
   }
 
-  /** Rename an album directory. */
+  /** Rename an album directory. Throws if source does not exist or target already exists. */
   async renameAlbum(oldName: string, newName: string): Promise<void> {
     const oldDir = `${this.rootDir}${this._safeAlbumName(oldName)}/`;
     const newDir = `${this.rootDir}${this._safeAlbumName(newName)}/`;
+
+    // Guard: source must exist
+    const oldInfo = await FileSystem.getInfoAsync(oldDir);
+    if (!oldInfo.exists || !oldInfo.isDirectory) {
+      throw new Error(`ALBUM_NOT_FOUND:${oldName}`);
+    }
+
+    // Guard: target must not already exist
+    const newInfo = await FileSystem.getInfoAsync(newDir);
+    if (newInfo.exists) {
+      throw new Error(`ALBUM_ALREADY_EXISTS:${newName}`);
+    }
+
     await this._ensureDir(newDir);
     // Move all files
     const files = await FileSystem.readDirectoryAsync(oldDir);

@@ -21,7 +21,7 @@ export interface VaultFile {
 
 /** A single activity log entry. */
 export interface ActivityEntry {
-  type: 'encrypt' | 'decrypt' | 'delete' | 'import' | 'move' | 'album_create' | 'album_delete';
+  type: 'encrypt' | 'decrypt' | 'delete' | 'import' | 'move' | 'album_create' | 'album_delete' | 'album_rename';
   fileCount: number;
   timestamp: number;
   /** Optional detail — e.g. album name for move/album actions. */

@@ -33,6 +33,7 @@
     },
     "plugins": [
       "expo-secure-store",
+      "expo-local-authentication",
       [
         "expo-image-picker",
         {

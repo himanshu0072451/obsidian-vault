@@ -14,9 +14,20 @@ import React, {
   useState,
   useEffect,
   useCallback,
-} from 'react';
-import { realVault, decoyVault, VaultStorage } from '../services/storage';
-import type { VaultContext } from '../services/storage';
+} from "react";
+import { realVault, decoyVault, VaultStorage } from "../services/storage";
+import type { VaultContext } from "../services/storage";
+import {
+  isBiometricEnabled,
+  getPasscodeWithBiometrics,
+  enrollBiometrics,
+  disableBiometrics,
+  getBiometricAvailability,
+} from "../services/BiometricService";
+import type {
+  BiometricAvailability,
+  BiometricResult,
+} from "../services/BiometricService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,6 +61,30 @@ interface AuthState {
 
   /** Lock the app and clear all in-memory secrets. */
   lock: () => void;
+
+  // ── Biometrics ──────────────────────────────────────────────────────────
+
+  /** Whether biometric unlock is currently enabled by the user. */
+  biometricEnabled: boolean;
+  /** Hardware/enrollment availability — null while loading. */
+  biometricAvailability: BiometricAvailability | null;
+  /**
+   * Try to unlock using the biometric-protected stored passcode.
+   * Returns the unlocked VaultContext, or null if cancelled / failed.
+   * Always falls back gracefully — never throws.
+   */
+  unlockWithBiometrics: () => Promise<VaultContext | null>;
+  /**
+   * Enroll biometrics using the currently active real-vault passcode.
+   * Only valid when isUnlocked && vaultContext === 'real'.
+   */
+  enableBiometrics: () => Promise<void>;
+  /** Remove the stored passcode and disable biometric unlock. */
+  disableBiometrics: () => Promise<void>;
+  /** Dismiss the biometric offer for this session without enabling. */
+  skipBiometricOffer: () => void;
+  /** Whether the user has skipped the offer this session. */
+  skippedBiometricOffer: boolean;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -59,23 +94,33 @@ const AuthContext = createContext<AuthState | null>(null);
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isSetup, setIsSetup]         = useState(false);
-  const [hasDecoy, setHasDecoy]       = useState(false);
-  const [isUnlocked, setIsUnlocked]   = useState(false);
-  const [isLoading, setIsLoading]     = useState(true);
-  const [passcode, setPasscode]       = useState('');
+  const [isSetup, setIsSetup] = useState(false);
+  const [hasDecoy, setHasDecoy] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [passcode, setPasscode] = useState("");
   const [vaultContext, setVaultContext] = useState<VaultContext | null>(null);
   const [activeVault, setActiveVault] = useState<VaultStorage | null>(null);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricAvailability, setBiometricAvailability] =
+    useState<BiometricAvailability | null>(null);
+  // In-memory only — resets on every app open, so offer shows once per session until enabled
+  const [skippedBiometricOffer, setSkippedBiometricOffer] = useState(false);
 
-  // Bootstrap: check which vaults have passcodes configured
+  // Bootstrap: check which vaults have passcodes configured + biometric state
   useEffect(() => {
-    Promise.all([realVault.hasPasscode(), decoyVault.hasPasscode()]).then(
-      ([hasReal, hasDec]) => {
-        setIsSetup(hasReal);
-        setHasDecoy(hasDec);
-        setIsLoading(false);
-      }
-    );
+    Promise.all([
+      realVault.hasPasscode(),
+      decoyVault.hasPasscode(),
+      isBiometricEnabled(),
+      getBiometricAvailability(),
+    ]).then(([hasReal, hasDec, bioEnabled, bioAvail]) => {
+      setIsSetup(hasReal);
+      setHasDecoy(hasDec);
+      setBiometricEnabled(bioEnabled);
+      setBiometricAvailability(bioAvail);
+      setIsLoading(false);
+    });
   }, []);
 
   // ── unlock ────────────────────────────────────────────────────────────────
@@ -85,24 +130,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Real vault takes priority
       if (await realVault.verifyPasscode(code)) {
         setPasscode(code);
-        setVaultContext('real');
+        setVaultContext("real");
         setActiveVault(realVault);
         setIsUnlocked(true);
-        return 'real';
+        return "real";
       }
 
       // Try decoy vault if one is configured
       if (hasDecoy && (await decoyVault.verifyPasscode(code))) {
         setPasscode(code);
-        setVaultContext('decoy');
+        setVaultContext("decoy");
         setActiveVault(decoyVault);
         setIsUnlocked(true);
-        return 'decoy';
+        return "decoy";
       }
 
       return null;
     },
-    [hasDecoy]
+    [hasDecoy],
   );
 
   // ── setup ─────────────────────────────────────────────────────────────────
@@ -111,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await realVault.savePasscodeHash(code);
     await realVault.ensureRootDir();
     setPasscode(code);
-    setVaultContext('real');
+    setVaultContext("real");
     setActiveVault(realVault);
     setIsSetup(true);
     setIsUnlocked(true);
@@ -125,10 +170,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setHasDecoy(true);
   }, []);
 
+  // ── biometrics ────────────────────────────────────────────────────────────
+
+  const unlockWithBiometrics =
+    useCallback(async (): Promise<VaultContext | null> => {
+      const result = await getPasscodeWithBiometrics();
+
+      if (result.outcome === "cancelled") {
+        // User tapped Cancel — stay on LockScreen, keep biometrics enabled
+        return null;
+      }
+
+      if (result.outcome === "invalidated") {
+        // Enrollment changed, device lock removed, or key gone.
+        // Disable biometrics so the prompt stops firing on every app open.
+        await disableBiometrics();
+        setBiometricEnabled(false);
+        return null;
+      }
+
+      // outcome === 'success' — route through the normal passcode unlock
+      return unlock(result.passcode);
+    }, [unlock]);
+
+  const enableBiometrics = useCallback(async (): Promise<void> => {
+    // Guard: only enroll when the real vault is active
+    if (!passcode || vaultContext !== "real") return;
+    await enrollBiometrics(passcode);
+    setBiometricEnabled(true);
+  }, [passcode, vaultContext]);
+
+  const skipBiometricOfferCallback = useCallback(() => {
+    setSkippedBiometricOffer(true);
+  }, []);
+
+  const disableBiometricsCallback = useCallback(async (): Promise<void> => {
+    await disableBiometrics();
+    setBiometricEnabled(false);
+  }, []);
+
   // ── lock ──────────────────────────────────────────────────────────────────
 
   const lock = useCallback(() => {
-    setPasscode('');
+    setPasscode("");
     setVaultContext(null);
     setActiveVault(null);
     setIsUnlocked(false);
@@ -148,6 +232,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setupDecoy,
         hasDecoy,
         lock,
+        biometricEnabled,
+        biometricAvailability,
+        unlockWithBiometrics,
+        enableBiometrics,
+        disableBiometrics: disableBiometricsCallback,
+        skipBiometricOffer: skipBiometricOfferCallback,
+        skippedBiometricOffer,
       }}
     >
       {children}
@@ -159,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth(): AuthState {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
 
@@ -169,6 +260,6 @@ export function useAuth(): AuthState {
  */
 export function useVault(): VaultStorage {
   const { activeVault } = useAuth();
-  if (!activeVault) throw new Error('useVault called while app is locked');
+  if (!activeVault) throw new Error("useVault called while app is locked");
   return activeVault;
 }

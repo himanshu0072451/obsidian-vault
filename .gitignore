@@ -4,6 +4,8 @@
 
 expo-env.d.ts
 # @end expo-cli
+android/app/debug.keystore
+.expo/
 
 node_modules
 .expo
