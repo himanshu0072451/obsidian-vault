@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import LockScreen from "./screens/LockScreen";
 import HomeScreen from "./screens/HomeScreen";
 import { Colors, Typography, Spacing, Radius } from "./utils/design";
+import { activate as activateScreenSecurity } from "./services/ScreenSecurityService";
 
 function AppNavigator() {
   const {
@@ -73,6 +74,11 @@ function AppNavigator() {
 }
 
 export default function App() {
+  // Activate screen protection once at app startup.
+  // Must be in App() — the stable root — not in AppNavigator which re-renders.
+  useEffect(() => {
+    return activateScreenSecurity();
+  }, []);
   return (
     <AuthProvider>
       <StatusBar style="light" />
