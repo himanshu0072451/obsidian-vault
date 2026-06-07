@@ -1,4 +1,10 @@
-import React, { useEffect, useCallback, useState, useRef, memo } from "react";
+import React, {
+  useEffect,
+  useCallback,
+  useState,
+  useRef,
+  memo,
+} from "react";
 import {
   View,
   Text,
@@ -33,12 +39,13 @@ import ImageViewer from "../components/ImageViewer";
 import { AlbumFilterBar } from "../components/AlbumFilterBar";
 import { AlbumActionSheet } from "../components/AlbumActionSheet";
 import type { AlbumActionSheetMode } from "../components/AlbumActionSheet";
+import { DecoySetupSheet } from "../components/DecoySetupSheet";
 import { useAlbums } from "../hooks/useAlbums";
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { lock, passcode } = useAuth();
+  const { lock, passcode, setupDecoy, hasDecoy, vaultContext } = useAuth();
   const vault = useVault();
   const {
     albums,
@@ -61,9 +68,7 @@ export default function HomeScreen() {
 
   // Decrypt state
   const [isDecrypting, setIsDecrypting] = useState(false);
-  const [decryptingFileName, setDecryptingFileName] = useState<string | null>(
-    null,
-  );
+  const [decryptingFileName, setDecryptingFileName] = useState<string | null>(null);
 
   // Preview state
   const [previewUri, setPreviewUri] = useState<string | null>(null);
@@ -73,14 +78,15 @@ export default function HomeScreen() {
   const activeTempUri = useRef<string | null>(null);
 
   // Album filter: undefined = All, null = root only, string = specific album
-  const [selectedAlbum, setSelectedAlbum] = useState<string | null | undefined>(
-    undefined,
-  );
+  const [selectedAlbum, setSelectedAlbum] = useState<string | null | undefined>(undefined);
 
   // Album action sheet
-  const [sheetMode, setSheetMode] = useState<AlbumActionSheetMode>("create");
+  const [sheetMode, setSheetMode] = useState<AlbumActionSheetMode>('create');
   const [sheetTarget, setSheetTarget] = useState<string | undefined>(undefined);
   const [sheetVisible, setSheetVisible] = useState(false);
+
+  // Decoy vault setup sheet
+  const [decoySheetVisible, setDecoySheetVisible] = useState(false);
 
   // ─── Data loading ────────────────────────────────────────────────────────
 
@@ -124,7 +130,7 @@ export default function HomeScreen() {
         const outPath = await decryptImage(
           file.uri,
           passcode,
-          FileSystem.cacheDirectory!,
+          FileSystem.cacheDirectory!
         );
 
         activeTempUri.current = outPath;
@@ -132,21 +138,22 @@ export default function HomeScreen() {
         setPreviewUri(outPath);
       } catch (e: any) {
         const isWrongPasscode =
-          e?.message?.includes("padding") || e?.message?.includes("passcode");
+          e?.message?.includes("padding") ||
+          e?.message?.includes("passcode");
 
         Alert.alert(
           "Decryption Failed",
           isWrongPasscode
             ? "Incorrect passcode. This file cannot be unlocked."
             : "This file may be corrupted or from an incompatible version.",
-          [{ text: "OK" }],
+          [{ text: "OK" }]
         );
       } finally {
         setIsDecrypting(false);
         setDecryptingFileName(null);
       }
     },
-    [passcode],
+    [passcode]
   );
 
   // ─── Preview close — always clean up temp file ────────────────────────────
@@ -177,17 +184,17 @@ export default function HomeScreen() {
               await loadFiles();
             },
           },
-        ],
+        ]
       );
     },
-    [loadFiles],
+    [loadFiles]
   );
 
   // ─── Album error display ──────────────────────────────────────────────────
 
   useEffect(() => {
     if (albumError) {
-      Alert.alert("Album Error", albumError);
+      Alert.alert('Album Error', albumError);
       clearAlbumError();
     }
   }, [albumError]);
@@ -195,18 +202,33 @@ export default function HomeScreen() {
   // ─── Album sheet handlers ─────────────────────────────────────────────────
 
   const openCreateSheet = useCallback(() => {
-    setSheetMode("create");
+    setSheetMode('create');
     setSheetTarget(undefined);
     setSheetVisible(true);
   }, []);
 
-  const handleSheetConfirm = useCallback(
-    async (value: string) => {
-      setSheetVisible(false);
-      await createAlbum(value);
-    },
-    [createAlbum],
-  );
+  const handleSheetConfirm = useCallback(async (value: string) => {
+    setSheetVisible(false);
+    await createAlbum(value);
+  }, [createAlbum]);
+
+  // ─── Decoy vault handlers ─────────────────────────────────────────────────
+
+  const openDecoySetup = useCallback(() => {
+    Alert.alert(
+      'Set Up Decoy Vault',
+      'Create a separate vault with its own passcode. Entering that passcode will open this decoy vault instead of your real one.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: () => setDecoySheetVisible(true) },
+      ]
+    );
+  }, []);
+
+  const handleDecoyConfirm = useCallback(async (newPasscode: string) => {
+    setDecoySheetVisible(false);
+    await setupDecoy(newPasscode);
+  }, [setupDecoy]);
 
   // ─── Overlay state ────────────────────────────────────────────────────────
 
@@ -244,15 +266,29 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>Vault</Text>
             <Text style={styles.subGreeting}>Your encrypted storage</Text>
           </View>
-          <Pressable
-            onPress={lock}
-            style={styles.lockBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Lock vault"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.lockIcon}>⎋</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            {/* Decoy setup — only visible on real vault before a decoy exists */}
+            {vaultContext === 'real' && !hasDecoy && (
+              <Pressable
+                onPress={openDecoySetup}
+                style={styles.headerBtn}
+                accessibilityRole="button"
+                accessibilityLabel="More options"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.headerBtnIcon}>⋯</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={lock}
+              style={styles.lockBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Lock vault"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.lockIcon}>⎋</Text>
+            </Pressable>
+          </View>
         </Animated.View>
 
         {/* ── Stats ──────────────────────────────────────────────────────── */}
@@ -330,10 +366,7 @@ export default function HomeScreen() {
 
       {/* ── Decrypt loading overlay ────────────────────────────────────────── */}
       {isDecrypting && (
-        <Animated.View
-          entering={FadeIn.duration(150)}
-          style={styles.decryptOverlay}
-        >
+        <Animated.View entering={FadeIn.duration(150)} style={styles.decryptOverlay}>
           <View style={styles.decryptSheet}>
             <ActivityIndicator size="large" color={Colors.silver} />
             <Text style={styles.decryptTitle}>Decrypting</Text>
@@ -362,6 +395,12 @@ export default function HomeScreen() {
         albumName={sheetTarget}
         onConfirm={handleSheetConfirm}
         onCancel={() => setSheetVisible(false)}
+      />
+      {/* ── Decoy vault setup sheet ────────────────────────────────────────── */}
+      <DecoySetupSheet
+        visible={decoySheetVisible}
+        onConfirm={handleDecoyConfirm}
+        onCancel={() => setDecoySheetVisible(false)}
       />
     </SafeAreaView>
   );
@@ -404,7 +443,7 @@ const VaultFileCard = memo(function VaultFileCard({
   const handleDeletePress = useCallback(() => {
     deleteScale.value = withSequence(
       withTiming(0.85, { duration: 80 }),
-      withTiming(1, { duration: 80 }),
+      withTiming(1, { duration: 80 })
     );
     setTimeout(onDelete, 100);
   }, [onDelete]);
@@ -585,6 +624,26 @@ const styles = StyleSheet.create({
   lockIcon: {
     fontSize: 18,
     color: Colors.textSecondary,
+  } as TextStyle,
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  } as ViewStyle,
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  headerBtnIcon: {
+    fontSize: 18,
+    color: Colors.textSecondary,
+    letterSpacing: 1,
   } as TextStyle,
 
   // Stats
