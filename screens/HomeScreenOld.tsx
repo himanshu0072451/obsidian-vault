@@ -52,7 +52,6 @@ export default function HomeScreen() {
     decryptOp,
     pickImages,
     encryptImages,
-    captureAndEncrypt,
     resetEncrypt,
     resetDecrypt,
   } = useVaultOperations();
@@ -118,31 +117,7 @@ export default function HomeScreen() {
     }
   }, [pickImages, encryptImages, passcode, loadFiles]);
 
-  // const handleSecureCamera = useCallback(async () => {
-  //   const captured = await captureAndEncrypt(passcode, selectedAlbum ?? null);
-  //   if (captured) await loadFiles();
-  // }, [captureAndEncrypt, passcode, selectedAlbum, loadFiles]);
-
   // ─── Decrypt ─────────────────────────────────────────────────────────────
-
-  const handleSecureCamera = useCallback(async () => {
-    try {
-      console.log("Starting camera");
-
-      const captured = await captureAndEncrypt(passcode, selectedAlbum ?? null);
-
-      console.log("Camera returned", captured);
-
-      if (captured) {
-        console.log("Loading files...");
-        await loadFiles();
-      }
-
-      console.log("Done");
-    } catch (err) {
-      console.error("Secure camera error:", err);
-    }
-  }, [captureAndEncrypt, passcode, selectedAlbum, loadFiles]);
 
   const handleDecrypt = useCallback(
     async (file: VaultFile) => {
@@ -337,21 +312,12 @@ export default function HomeScreen() {
         </Animated.View>
 
         {/* ── Action ─────────────────────────────────────────────────────── */}
-        <Animated.View
-          entering={FadeInDown.delay(160).duration(400)}
-          style={styles.actionsCol}
-        >
+        <Animated.View entering={FadeInDown.delay(160).duration(400)}>
           <ActionCard
             icon="🔒"
             title="Encrypt Images"
             description="Select photos from your library to lock in the vault"
             onPress={handleEncrypt}
-          />
-          <ActionCard
-            icon="📷"
-            title="Secure Camera"
-            description="Capture a photo and encrypt it immediately"
-            onPress={handleSecureCamera}
           />
         </Animated.View>
 
@@ -489,51 +455,52 @@ const VaultFileCard = memo(function VaultFileCard({
   }, [onDelete]);
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 40).duration(350)}>
-      <Animated.View style={cardAnimStyle}>
-        <Pressable
-          onPress={onPress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          accessibilityRole="button"
-          accessibilityLabel={`Decrypt and preview ${file.name.replace(".vault", "")}`}
-        >
-          <View style={styles.fileCard}>
-            {/* Left: icon + meta */}
-            <View style={styles.fileLeft}>
-              <View style={styles.fileIconWrap}>
-                <Text style={styles.fileIconText}>⬡</Text>
-              </View>
-              <View style={styles.fileMeta}>
-                <Text style={styles.fileName} numberOfLines={1}>
-                  {file.name.replace(".vault", "")}
-                </Text>
-                <Text style={styles.fileDetail}>
-                  {formatFileSize(file.size)}
-                  {"  ·  "}
-                  {formatRelativeTime(file.createdAt * 1000)}
-                </Text>
-              </View>
+    <Animated.View
+      entering={FadeInDown.delay(index * 40).duration(350)}
+      style={cardAnimStyle}
+    >
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={`Decrypt and preview ${file.name.replace(".vault", "")}`}
+      >
+        <View style={styles.fileCard}>
+          {/* Left: icon + meta */}
+          <View style={styles.fileLeft}>
+            <View style={styles.fileIconWrap}>
+              <Text style={styles.fileIconText}>⬡</Text>
             </View>
-
-            {/* Right: delete + chevron */}
-            <View style={styles.fileActions}>
-              <Animated.View style={deleteAnimStyle}>
-                <Pressable
-                  onPress={handleDeletePress}
-                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
-                  style={styles.deleteBtn}
-                >
-                  <Text style={styles.deleteIcon}>✕</Text>
-                </Pressable>
-              </Animated.View>
-              <Text style={styles.chevron}>›</Text>
+            <View style={styles.fileMeta}>
+              <Text style={styles.fileName} numberOfLines={1}>
+                {file.name.replace(".vault", "")}
+              </Text>
+              <Text style={styles.fileDetail}>
+                {formatFileSize(file.size)}
+                {"  ·  "}
+                {formatRelativeTime(file.createdAt * 1000)}
+              </Text>
             </View>
           </View>
-        </Pressable>
-      </Animated.View>
+
+          {/* Right: delete + chevron */}
+          <View style={styles.fileActions}>
+            <Animated.View style={deleteAnimStyle}>
+              <Pressable
+                onPress={handleDeletePress}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
+                style={styles.deleteBtn}
+              >
+                <Text style={styles.deleteIcon}>✕</Text>
+              </Pressable>
+            </Animated.View>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+        </View>
+      </Pressable>
     </Animated.View>
   );
 });
@@ -692,11 +659,6 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   statFlex: {
     flex: 1,
-  } as ViewStyle,
-
-  // Action cards column
-  actionsCol: {
-    gap: Spacing.md,
   } as ViewStyle,
 
   // Action card

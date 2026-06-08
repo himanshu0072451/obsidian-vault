@@ -1,13 +1,14 @@
-import { useState, useCallback } from 'react';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
-import { encryptImage, decryptImage } from '../services/encryption';
-import { VAULT_EXTENSION } from '../services/storage';
-import { useVault } from './useAuth';
-import type { VaultFile } from '../services/storage';
+import { useState, useCallback } from "react";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
+import { encryptImage, decryptImage } from "../services/encryption";
+import { capturePhoto } from "../services/SecureCameraService";
+import { VAULT_EXTENSION } from "../services/storage";
+import { useVault } from "./useAuth";
+import type { VaultFile } from "../services/storage";
 
-export type OperationStatus = 'idle' | 'running' | 'success' | 'error';
+export type OperationStatus = "idle" | "running" | "success" | "error";
 
 interface VaultOperation {
   status: OperationStatus;
@@ -16,7 +17,12 @@ interface VaultOperation {
   error: string | null;
 }
 
-const idle: VaultOperation = { status: 'idle', progress: 0, message: '', error: null };
+const idle: VaultOperation = {
+  status: "idle",
+  progress: 0,
+  message: "",
+  error: null,
+};
 
 export function useVaultOperations() {
   const vault = useVault();
@@ -26,12 +32,15 @@ export function useVaultOperations() {
 
   // ── Pick images from gallery ─────────────────────────────────────────────
 
-  const pickImages = useCallback(async (): Promise<ImagePicker.ImagePickerAsset[]> => {
+  const pickImages = useCallback(async (): Promise<
+    ImagePicker.ImagePickerAsset[]
+  > => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') throw new Error('Photo library permission denied');
+    if (status !== "granted")
+      throw new Error("Photo library permission denied");
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ["images"],
       allowsMultipleSelection: true,
       quality: 1,
       selectionLimit: 20,
@@ -48,9 +57,14 @@ export function useVaultOperations() {
       assets: ImagePicker.ImagePickerAsset[],
       passcode: string,
       deleteOriginal: boolean,
-      albumName?: string | null
+      albumName?: string | null,
     ) => {
-      setEncryptOp({ status: 'running', progress: 0, message: 'Preparing vault...', error: null });
+      setEncryptOp({
+        status: "running",
+        progress: 0,
+        message: "Preparing vault...",
+        error: null,
+      });
 
       try {
         const outDir = await vault.ensureAlbumDir(albumName ?? null);
@@ -59,14 +73,14 @@ export function useVaultOperations() {
         for (let i = 0; i < total; i++) {
           const asset = assets[i];
           setEncryptOp({
-            status: 'running',
+            status: "running",
             progress: (i + 0.5) / total,
             message: `Encrypting ${i + 1} of ${total}...`,
             error: null,
           });
 
-           const val = await encryptImage(asset.uri, passcode, outDir);
-           console.log(`Encrypted ${asset.uri} to ${val}`);
+          const val = await encryptImage(asset.uri, passcode, outDir);
+          console.log(`Encrypted ${asset.uri} to ${val}`);
 
           if (deleteOriginal) {
             await FileSystem.deleteAsync(asset.uri, { idempotent: true });
@@ -74,46 +88,52 @@ export function useVaultOperations() {
         }
 
         await vault.logActivity({
-          type: 'encrypt',
+          type: "encrypt",
           fileCount: total,
           timestamp: Date.now(),
           detail: albumName ?? undefined,
         });
 
         setEncryptOp({
-          status: 'success',
+          status: "success",
           progress: 1,
-          message: `${total} image${total !== 1 ? 's' : ''} encrypted`,
+          message: `${total} image${total !== 1 ? "s" : ""} encrypted`,
           error: null,
         });
       } catch (e: any) {
         setEncryptOp({
-          status: 'error',
+          status: "error",
           progress: 0,
-          message: '',
-          error: e.message ?? 'Encryption failed',
+          message: "",
+          error: e.message ?? "Encryption failed",
         });
       }
     },
-    [vault]
+    [vault],
   );
 
   // ── Decrypt to Photos library ─────────────────────────────────────────────
 
   const decryptToLibrary = useCallback(
     async (uris: string[], passcode: string) => {
-      setDecryptOp({ status: 'running', progress: 0, message: 'Unlocking files...', error: null });
+      setDecryptOp({
+        status: "running",
+        progress: 0,
+        message: "Unlocking files...",
+        error: null,
+      });
 
       try {
         const { status } = await MediaLibrary.requestPermissionsAsync();
-        if (status !== 'granted') throw new Error('Media library permission denied');
+        if (status !== "granted")
+          throw new Error("Media library permission denied");
 
         const cacheDir = FileSystem.cacheDirectory!;
         const total = uris.length;
 
         for (let i = 0; i < total; i++) {
           setDecryptOp({
-            status: 'running',
+            status: "running",
             progress: (i + 0.5) / total,
             message: `Decrypting ${i + 1} of ${total}...`,
             error: null,
@@ -125,29 +145,91 @@ export function useVaultOperations() {
         }
 
         await vault.logActivity({
-          type: 'decrypt',
+          type: "decrypt",
           fileCount: total,
           timestamp: Date.now(),
         });
 
         setDecryptOp({
-          status: 'success',
+          status: "success",
           progress: 1,
-          message: `${total} image${total !== 1 ? 's' : ''} saved to Photos`,
+          message: `${total} image${total !== 1 ? "s" : ""} saved to Photos`,
           error: null,
         });
       } catch (e: any) {
-        const msg = e.message ?? '';
-        const isWrongPasscode = msg.includes('padding') || msg.includes('passcode');
+        const msg = e.message ?? "";
+        const isWrongPasscode =
+          msg.includes("padding") || msg.includes("passcode");
         setDecryptOp({
-          status: 'error',
+          status: "error",
           progress: 0,
-          message: '',
-          error: isWrongPasscode ? 'Incorrect passcode' : 'Decryption failed',
+          message: "",
+          error: isWrongPasscode ? "Incorrect passcode" : "Decryption failed",
         });
       }
     },
-    [vault]
+    [vault],
+  );
+
+  // ── Secure Camera ────────────────────────────────────────────────────────
+
+  /**
+   * Capture a photo via the native camera, encrypt it immediately into the
+   * active vault, then delete the temp camera file.
+   *
+   * The photo is never saved to the device gallery.
+   * Returns true if a photo was captured and encrypted, false if the user
+   * cancelled or permission was denied.
+   */
+  const captureAndEncrypt = useCallback(
+    async (passcode: string, albumName?: string | null): Promise<boolean> => {
+      const tempUri = await capturePhoto();
+      if (!tempUri) return false; // cancelled or denied
+
+      setEncryptOp({
+        status: "running",
+        progress: 0.3,
+        message: "Encrypting photo...",
+        error: null,
+      });
+
+      try {
+        const outDir = await vault.ensureAlbumDir(albumName ?? null);
+        await encryptImage(tempUri, passcode, outDir);
+
+        // Always delete the temp camera file — it must never persist unencrypted
+        await FileSystem.deleteAsync(tempUri, { idempotent: true });
+
+        await vault.logActivity({
+          type: "encrypt",
+          fileCount: 1,
+          timestamp: Date.now(),
+          detail: albumName ?? undefined,
+        });
+
+        setEncryptOp({
+          status: "success",
+          progress: 1,
+          message: "Photo encrypted",
+          error: null,
+        });
+
+        return true;
+      } catch (e: any) {
+        // Best-effort cleanup on failure — temp file must not linger
+        await FileSystem.deleteAsync(tempUri, { idempotent: true });
+
+        setEncryptOp({
+          status: "error",
+          progress: 0,
+          message: "",
+          error: e.message ?? "Encryption failed",
+        });
+
+        return false;
+      }
+    },
+    [vault],
   );
 
   const resetEncrypt = useCallback(() => setEncryptOp(idle), []);
@@ -158,6 +240,7 @@ export function useVaultOperations() {
     decryptOp,
     pickImages,
     encryptImages,
+    captureAndEncrypt,
     decryptToLibrary,
     resetEncrypt,
     resetDecrypt,
