@@ -9,16 +9,16 @@
  * Never instantiate this directly outside of index.ts.
  */
 
-import * as SecureStore from 'expo-secure-store';
-import * as FileSystem from 'expo-file-system';
-import { hashPasscode } from './passcode';
+import * as SecureStore from "expo-secure-store";
+import * as FileSystem from "expo-file-system";
+import { hashPasscode } from "./passcode";
 import {
   VaultContext,
   VaultFile,
   ActivityEntry,
   VAULT_EXTENSION,
   THUMB_EXTENSION,
-} from './types';
+} from "./types";
 
 // Maximum activity log entries kept per vault
 const MAX_ACTIVITY = 50;
@@ -41,9 +41,9 @@ export class VaultStorage {
     // All SecureStore keys are prefixed so real/decoy never collide
     const p = `obsidian_${context}`;
     this.keyPasscodeHash = `${p}_passcode_hash`;
-    this.keyActivity     = `${p}_activity`;
-    this.keyFavorites    = `${p}_favorites`;
-    this.keyTags         = `${p}_tags`;
+    this.keyActivity = `${p}_activity`;
+    this.keyFavorites = `${p}_favorites`;
+    this.keyTags = `${p}_tags`;
 
     // Filesystem: <documents>/vault/real/ or <documents>/vault/decoy/
     this.rootDir = `${FileSystem.documentDirectory}vault/${context}/`;
@@ -154,9 +154,40 @@ export class VaultStorage {
    * Read all vault files across root + all albums.
    * Returns a flat list sorted by createdAt descending.
    */
+  // async getVaultFiles(albumFilter?: string | null): Promise<VaultFile[]> {
+  //   await this.ensureRootDir();
+
+  //   const files: VaultFile[] = [];
+
+  //   if (albumFilter !== undefined) {
+  //     // Scoped to one album (or root if null)
+  //     const dir = albumFilter
+  //       ? `${this.rootDir}${this._safeAlbumName(albumFilter)}/`
+  //       : this.rootDir;
+  //     const album = albumFilter ?? null;
+  //     await this._collectFilesFromDir(dir, album, files);
+  //   } else {
+  //     // All files: root-level + every album
+  //     await this._collectFilesFromDir(this.rootDir, null, files);
+  //     const albums = await this.listAlbums();
+  //     for (const album of albums) {
+  //       const dir = `${this.rootDir}${album}/`;
+  //       await this._collectFilesFromDir(dir, album, files);
+  //     }
+  //   }
+
+  //   return files.sort((a, b) => b.createdAt - a.createdAt);
+  // }
+
+  /**
+   * Read all vault files across root + all albums.
+   * Returns a flat list sorted by createdAt descending.
+   */
   async getVaultFiles(albumFilter?: string | null): Promise<VaultFile[]> {
     await this.ensureRootDir();
 
+    // Load the full favorites set once — O(1) SecureStore read shared across all files
+    const favorites = await this.getFavorites();
     const files: VaultFile[] = [];
 
     if (albumFilter !== undefined) {
@@ -165,14 +196,14 @@ export class VaultStorage {
         ? `${this.rootDir}${this._safeAlbumName(albumFilter)}/`
         : this.rootDir;
       const album = albumFilter ?? null;
-      await this._collectFilesFromDir(dir, album, files);
+      await this._collectFilesFromDir(dir, album, favorites, files);
     } else {
       // All files: root-level + every album
-      await this._collectFilesFromDir(this.rootDir, null, files);
+      await this._collectFilesFromDir(this.rootDir, null, favorites, files);
       const albums = await this.listAlbums();
       for (const album of albums) {
         const dir = `${this.rootDir}${album}/`;
-        await this._collectFilesFromDir(dir, album, files);
+        await this._collectFilesFromDir(dir, album, favorites, files);
       }
     }
 
@@ -193,7 +224,7 @@ export class VaultStorage {
    */
   async moveFile(uri: string, targetAlbum: string | null): Promise<string> {
     const targetDir = await this.ensureAlbumDir(targetAlbum);
-    const fileName = uri.split('/').pop()!;
+    const fileName = uri.split("/").pop()!;
     const newUri = `${targetDir}${fileName}`;
 
     await FileSystem.moveAsync({ from: uri, to: newUri });
@@ -217,7 +248,7 @@ export class VaultStorage {
     history.unshift(entry);
     await SecureStore.setItemAsync(
       this.keyActivity,
-      JSON.stringify(history.slice(0, MAX_ACTIVITY))
+      JSON.stringify(history.slice(0, MAX_ACTIVITY)),
     );
   }
 
@@ -236,13 +267,19 @@ export class VaultStorage {
   async addFavorite(uri: string): Promise<void> {
     const favs = await this.getFavorites();
     favs.add(uri);
-    await SecureStore.setItemAsync(this.keyFavorites, JSON.stringify([...favs]));
+    await SecureStore.setItemAsync(
+      this.keyFavorites,
+      JSON.stringify([...favs]),
+    );
   }
 
   async removeFavorite(uri: string): Promise<void> {
     const favs = await this.getFavorites();
     favs.delete(uri);
-    await SecureStore.setItemAsync(this.keyFavorites, JSON.stringify([...favs]));
+    await SecureStore.setItemAsync(
+      this.keyFavorites,
+      JSON.stringify([...favs]),
+    );
   }
 
   async isFavorite(uri: string): Promise<boolean> {
@@ -306,10 +343,47 @@ export class VaultStorage {
    * Collect .vault files from a single directory into the output array.
    * Skips subdirectories (those are albums, handled separately).
    */
+  // private async _collectFilesFromDir(
+  //   dir: string,
+  //   album: string | null,
+  //   out: VaultFile[],
+  // ): Promise<void> {
+  //   const dirInfo = await FileSystem.getInfoAsync(dir);
+  //   if (!dirInfo.exists) return;
+
+  //   const entries = await FileSystem.readDirectoryAsync(dir);
+
+  //   for (const name of entries) {
+  //     if (!name.endsWith(VAULT_EXTENSION)) continue;
+
+  //     const uri = `${dir}${name}`;
+  //     const info = await FileSystem.getInfoAsync(uri);
+  //     if (!info.exists || info.isDirectory) continue;
+
+  //     // Check for thumbnail sidecar
+  //     const thumbUri = uri.replace(VAULT_EXTENSION, THUMB_EXTENSION);
+  //     const thumbInfo = await FileSystem.getInfoAsync(thumbUri);
+
+  //     out.push({
+  //       name,
+  //       uri,
+  //       thumbUri: thumbInfo.exists ? thumbUri : null,
+  //       size: (info as any).size ?? 0,
+  //       createdAt: (info as any).modificationTime ?? Date.now(),
+  //       album,
+  //     });
+  //   }
+  // }
+
+  /**
+   * Collect .vault files from a single directory into the output array.
+   * Skips subdirectories (those are albums, handled separately).
+   */
   private async _collectFilesFromDir(
     dir: string,
     album: string | null,
-    out: VaultFile[]
+    favorites: Set<string>,
+    out: VaultFile[],
   ): Promise<void> {
     const dirInfo = await FileSystem.getInfoAsync(dir);
     if (!dirInfo.exists) return;
@@ -334,12 +408,13 @@ export class VaultStorage {
         size: (info as any).size ?? 0,
         createdAt: (info as any).modificationTime ?? Date.now(),
         album,
+        isFavorite: favorites.has(uri),
       });
     }
   }
 
   /** Strip characters unsafe for directory names. */
   private _safeAlbumName(name: string): string {
-    return name.replace(/[^a-zA-Z0-9_\-. ]/g, '_').trim();
+    return name.replace(/[^a-zA-Z0-9_\-. ]/g, "_").trim();
   }
 }

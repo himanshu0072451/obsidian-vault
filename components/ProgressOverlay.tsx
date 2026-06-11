@@ -1,22 +1,16 @@
-import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  ViewStyle,
-} from 'react-native';
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet, Modal, ViewStyle } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
   withSpring,
   Easing,
-} from 'react-native-reanimated';
-import { Colors, Typography, Spacing, Radius } from '../utils/design';
-import { Button } from './Button';
+} from "react-native-reanimated";
+import { Colors, Typography, Spacing, Radius } from "../utils/design";
+import { Button } from "./Button";
 
-export type OperationStatus = 'idle' | 'running' | 'success' | 'error';
+export type OperationStatus = "idle" | "running" | "success" | "error";
 
 interface ProgressOverlayProps {
   visible: boolean;
@@ -38,6 +32,8 @@ export function ProgressOverlay({
   const barWidth = useSharedValue(0);
   const contentScale = useSharedValue(0.9);
   const contentOpacity = useSharedValue(0);
+
+  // console.log("ProgressOverlay", visible, status);
 
   useEffect(() => {
     if (visible) {
@@ -65,34 +61,45 @@ export function ProgressOverlay({
     opacity: contentOpacity.value,
   }));
 
-  const isDone = status === 'success' || status === 'error';
-
+  const isDone = status === "success" || status === "error";
+  if (!visible) return null;
   return (
-    <Modal transparent visible={visible} animationType="fade">
+    // <Modal transparent visible={visible} animationType="fade">
+    <View
+      style={[
+        StyleSheet.absoluteFillObject,
+        {
+          backgroundColor: "rgba(0,0,0,0.85)",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 9999,
+        },
+      ]}
+    >
       <View style={styles.backdrop}>
         <Animated.View style={[styles.sheet, contentStyle]}>
           {/* Icon area */}
           <View style={styles.iconArea}>
-            {status === 'running' && (
+            {status === "running" && (
               <View style={styles.spinnerRing}>
                 <Text style={styles.iconText}>⚙</Text>
               </View>
             )}
-            {status === 'success' && (
+            {status === "success" && (
               <Text style={[styles.statusIcon, styles.successIcon]}>✓</Text>
             )}
-            {status === 'error' && (
+            {status === "error" && (
               <Text style={[styles.statusIcon, styles.errorIcon]}>✕</Text>
             )}
           </View>
 
           {/* Message */}
           <Text style={styles.message}>
-            {status === 'error' ? error : message}
+            {status === "error" ? error : message}
           </Text>
 
           {/* Progress bar */}
-          {status === 'running' && (
+          {status === "running" && (
             <View style={styles.track}>
               <Animated.View style={[styles.bar, barStyle]} />
             </View>
@@ -103,31 +110,32 @@ export function ProgressOverlay({
             <Button
               label="Done"
               onPress={onDismiss}
-              variant={status === 'success' ? 'primary' : 'secondary'}
+              variant={status === "success" ? "primary" : "secondary"}
               style={styles.doneButton}
               fullWidth
             />
           )}
         </Animated.View>
       </View>
-    </Modal>
+    </View>
+    // {/* </Modal> */}
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.xl,
   } as ViewStyle,
   sheet: {
-    width: '100%',
+    width: "100%",
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: Colors.border,
   } as ViewStyle,
@@ -140,8 +148,8 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconText: {
     fontSize: 28,
@@ -161,19 +169,19 @@ const styles = StyleSheet.create({
     fontSize: Typography.md,
     color: Colors.text,
     fontWeight: Typography.medium,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: Spacing.lg,
   },
   track: {
-    width: '100%',
+    width: "100%",
     height: 3,
     backgroundColor: Colors.border,
     borderRadius: 2,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: Spacing.md,
   } as ViewStyle,
   bar: {
-    height: '100%',
+    height: "100%",
     backgroundColor: Colors.silver,
     borderRadius: 2,
   } as ViewStyle,

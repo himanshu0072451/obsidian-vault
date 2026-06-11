@@ -7,6 +7,7 @@ import LockScreen from "./screens/LockScreen";
 import HomeScreen from "./screens/HomeScreen";
 import { Colors, Typography, Spacing, Radius } from "./utils/design";
 import { activate as activateScreenSecurity } from "./services/ScreenSecurityService";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 function AppNavigator() {
   const {

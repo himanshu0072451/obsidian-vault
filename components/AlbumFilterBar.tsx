@@ -9,7 +9,7 @@
  * Purely controlled — no internal state.
  */
 
-import React, { memo } from 'react';
+import React, { memo } from "react";
 import {
   ScrollView,
   View,
@@ -18,8 +18,8 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-} from 'react-native';
-import { Colors, Typography, Spacing, Radius } from '../utils/design';
+} from "react-native";
+import { Colors, Typography, Spacing, Radius } from "../utils/design";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,10 @@ interface AlbumFilterBarProps {
   selected: string | null | undefined;
   onSelect: (album: string | null | undefined) => void;
   onCreatePress: () => void;
+  /** Whether the Favorites chip is currently active. */
+  showFavorites: boolean;
+  /** Called when the Favorites chip is tapped. */
+  onFavoritesPress: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -42,6 +46,8 @@ export const AlbumFilterBar = memo(function AlbumFilterBar({
   selected,
   onSelect,
   onCreatePress,
+  showFavorites,
+  onFavoritesPress,
 }: AlbumFilterBarProps) {
   return (
     <ScrollView
@@ -54,8 +60,15 @@ export const AlbumFilterBar = memo(function AlbumFilterBar({
       {/* All */}
       <Chip
         label="All"
-        active={selected === undefined}
+        active={selected === undefined && !showFavorites}
         onPress={() => onSelect(undefined)}
+      />
+
+      {/* Favorites */}
+      <Chip
+        label="★ Favorites"
+        active={showFavorites}
+        onPress={onFavoritesPress}
       />
 
       {/* One chip per album */}
@@ -119,8 +132,8 @@ const styles = StyleSheet.create({
   } as ViewStyle,
 
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 2,
@@ -133,8 +146,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   } as ViewStyle,
 
   chipActive: {
@@ -161,8 +174,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   } as ViewStyle,
 
   addChipText: {

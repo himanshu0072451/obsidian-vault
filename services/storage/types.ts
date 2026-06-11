@@ -4,7 +4,7 @@
  */
 
 /** Which vault context is active in the current session. */
-export type VaultContext = 'real' | 'decoy';
+export type VaultContext = "real" | "decoy";
 
 /** A single encrypted file entry returned by the storage layer. */
 export interface VaultFile {
@@ -17,11 +17,21 @@ export interface VaultFile {
   createdAt: number;
   /** Album name (subdirectory), or null if in the vault root. */
   album: string | null;
+  /** Whether the file has been starred in the active vault. */
+  isFavorite: boolean;
 }
 
 /** A single activity log entry. */
 export interface ActivityEntry {
-  type: 'encrypt' | 'decrypt' | 'delete' | 'import' | 'move' | 'album_create' | 'album_delete' | 'album_rename';
+  type:
+    | "encrypt"
+    | "decrypt"
+    | "delete"
+    | "import"
+    | "move"
+    | "album_create"
+    | "album_delete"
+    | "album_rename";
   fileCount: number;
   timestamp: number;
   /** Optional detail — e.g. album name for move/album actions. */
@@ -29,5 +39,5 @@ export interface ActivityEntry {
 }
 
 /** File extensions the vault system recognises as encrypted content. */
-export const VAULT_EXTENSION = '.vault';
-export const THUMB_EXTENSION = '.thumb';
+export const VAULT_EXTENSION = ".vault";
+export const THUMB_EXTENSION = ".thumb";

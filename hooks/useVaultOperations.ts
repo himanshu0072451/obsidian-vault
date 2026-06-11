@@ -80,7 +80,7 @@ export function useVaultOperations() {
           });
 
           const val = await encryptImage(asset.uri, passcode, outDir);
-          console.log(`Encrypted ${asset.uri} to ${val}`);
+          // console.log(`Encrypted ${asset.uri} to ${val}`);
 
           if (deleteOriginal) {
             await FileSystem.deleteAsync(asset.uri, { idempotent: true });

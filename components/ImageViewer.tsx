@@ -1,199 +1,3 @@
-// import React from "react";
-// import { Modal, View, Image, Pressable, Text } from "react-native";
-
-// interface ImageViewerProps {
-//   visible: boolean;
-//   imageUri: string | null;
-//   onClose: () => void;
-// }
-
-// export default function ImageViewer({
-//   visible,
-//   imageUri,
-//   onClose,
-// }: ImageViewerProps) {
-//   return (
-//     <Modal visible={visible} animationType="fade" transparent={false}>
-//       <View className="flex-1 bg-black">
-//         {/* Header */}
-//         <View className="absolute top-14 right-6 z-50">
-//           <Pressable
-//             onPress={onClose}
-//             className="h-12 w-12 items-center justify-center rounded-full bg-white/10"
-//           >
-//             <Text className="text-2xl text-white">✕</Text>
-//           </Pressable>
-//         </View>
-
-//         {/* Image */}
-//         {imageUri && (
-//           <Image
-//             source={{ uri: imageUri }}
-//             style={{
-//               width: "100%",
-//               height: "100%",
-//             }}
-//             resizeMode="contain"
-//           />
-//         )}
-//       </View>
-//     </Modal>
-//   );
-// }
-
-// --------------------------------------------------------------
-
-// import React from "react";
-// import { Modal, View, Image, Pressable, Text, StyleSheet } from "react-native";
-
-// interface ImageViewerProps {
-//   visible: boolean;
-//   imageUri: string | null;
-//   fileName?: string;
-//   onClose: () => void;
-// }
-
-// export default function ImageViewer({
-//   visible,
-//   imageUri,
-//   fileName,
-//   onClose,
-// }: ImageViewerProps) {
-//   return (
-//     <Modal visible={visible} animationType="fade" statusBarTranslucent>
-//       <View style={styles.container}>
-//         {/* Header */}
-//         <View style={styles.header}>
-//           <Text numberOfLines={1} style={styles.fileName}>
-//             {fileName ?? "Protected Image"}
-//           </Text>
-
-//           <Pressable onPress={onClose} style={styles.closeButton}>
-//             <Text style={styles.closeText}>✕</Text>
-//           </Pressable>
-//         </View>
-
-//         {/* Image */}
-//         {imageUri && (
-//           <View style={styles.imageContainer}>
-//             <View style={styles.imageWrapper}>
-//               <Image
-//                 source={{ uri: imageUri }}
-//                 style={styles.image}
-//                 resizeMode="contain"
-//               />
-//             </View>
-//           </View>
-//         )}
-
-//         {/* Bottom Hint */}
-//         <View style={styles.hintContainer}>
-//           <Text style={styles.hintText}>Pinch to zoom • Swipe to explore</Text>
-//         </View>
-//       </View>
-//     </Modal>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: "#000",
-//   },
-
-//   header: {
-//     position: "absolute",
-//     top: 56,
-//     left: 16,
-//     right: 16,
-//     zIndex: 100,
-//     flexDirection: "row",
-//     alignItems: "center",
-//     justifyContent: "space-between",
-
-//     paddingHorizontal: 16,
-//     paddingVertical: 12,
-
-//     borderRadius: 24,
-//     borderWidth: 1,
-//     borderColor: "rgba(255,255,255,0.1)",
-//     backgroundColor: "rgba(255,255,255,0.06)",
-//   },
-
-//   fileName: {
-//     flex: 1,
-//     color: "#fff",
-//     fontSize: 14,
-//     fontWeight: "600",
-//   },
-
-//   closeButton: {
-//     width: 44,
-//     height: 44,
-
-//     alignItems: "center",
-//     justifyContent: "center",
-
-//     borderRadius: 22,
-//     borderWidth: 1,
-//     borderColor: "rgba(255,255,255,0.1)",
-//     backgroundColor: "rgba(255,255,255,0.08)",
-
-//     marginLeft: 12,
-//   },
-
-//   closeText: {
-//     color: "#fff",
-//     fontSize: 18,
-//     fontWeight: "600",
-//   },
-
-//   imageContainer: {
-//     flex: 1,
-//     justifyContent: "center",
-//     alignItems: "center",
-//     paddingHorizontal: 16,
-//   },
-
-//   imageWrapper: {
-//     width: "100%",
-//     height: "90%",
-
-//     borderRadius: 24,
-//     overflow: "hidden",
-
-//     borderWidth: 1,
-//     borderColor: "rgba(255,255,255,0.08)",
-//   },
-
-//   image: {
-//     width: "100%",
-//     height: "100%",
-//   },
-
-//   hintContainer: {
-//     position: "absolute",
-//     bottom: 40,
-//     left: 0,
-//     right: 0,
-
-//     alignItems: "center",
-//   },
-
-//   hintText: {
-//     color: "#9ca3af",
-//     fontSize: 12,
-
-//     paddingHorizontal: 16,
-//     paddingVertical: 8,
-
-//     borderRadius: 999,
-//     backgroundColor: "rgba(255,255,255,0.06)",
-//   },
-// });
-
-
-// --------------------------------------------------------------
 /**
  * ImageViewer — immersive fullscreen image viewer
  *
@@ -210,13 +14,7 @@
  *   • All gestures on UI thread via Reanimated worklets
  */
 
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  memo,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState, memo } from "react";
 import {
   Modal,
   View,
@@ -264,9 +62,9 @@ const SCREEN = Dimensions.get("window");
 const MIN_SCALE = 0.8;
 const MAX_SCALE = 6;
 const DOUBLE_TAP_ZOOM = 3;
-const SWIPE_CLOSE_VELOCITY = 800;   // px/s downward velocity to trigger close
-const SWIPE_CLOSE_DISTANCE = 120;   // or this many px down at any velocity
-const CHROME_HIDE_DELAY = 3000;     // ms until chrome auto-hides
+const SWIPE_CLOSE_VELOCITY = 800; // px/s downward velocity to trigger close
+const SWIPE_CLOSE_DISTANCE = 120; // or this many px down at any velocity
+const CHROME_HIDE_DELAY = 3000; // ms until chrome auto-hides
 const SPRING_CONFIG = { damping: 22, stiffness: 280, mass: 0.8 };
 const SPRING_SOFT = { damping: 30, stiffness: 200, mass: 1 };
 
@@ -279,7 +77,8 @@ export default memo(function ImageViewer({
   onClose,
 }: ImageViewerProps) {
   // Visibility fade
-  const backdropOpacity = useSharedValue(0);
+  // const backdropOpacity = useSharedValue(0);
+  const backdropOpacity = useSharedValue(1);
   const imageOpacity = useSharedValue(0);
 
   // Transform state
@@ -307,7 +106,31 @@ export default memo(function ImageViewer({
   // ─── Open/close animation ──────────────────────────────────────────────
 
   useEffect(() => {
+    // console.log(
+    //   "[IV] ImageViewer RENDER",
+    //   {
+    //     visible,
+    //     hasUri: !!imageUri,
+    //     imageOpacity: imageOpacity.value,
+    //     backdropOpacity: backdropOpacity.value,
+    //   },
+    //   Date.now(),
+    // );
     if (visible) {
+      // console.log(
+      //   "[IV] 4. useEffect([visible]) fired, visible=",
+      //   visible,
+      //   Date.now(),
+      // );
+      // Cancel any in-flight animations before resetting — bare assignment
+      // does not stop UI-thread worklets (withDecay, withSpring).
+      cancelAnimation(scale);
+      cancelAnimation(translateX);
+      cancelAnimation(translateY);
+      cancelAnimation(swipeY);
+      cancelAnimation(backdropOpacity);
+      cancelAnimation(imageOpacity);
+
       // Reset all transform state
       scale.value = 1;
       savedScale.value = 1;
@@ -318,9 +141,21 @@ export default memo(function ImageViewer({
       swipeY.value = 0;
       isSwipingToClose.value = false;
 
-      // Fade in
-      backdropOpacity.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
-      imageOpacity.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+      // // Fade in
+      // backdropOpacity.value = withTiming(1, {
+      //   duration: 220,
+      //   easing: Easing.out(Easing.cubic),
+      // });
+      // imageOpacity.value = withTiming(1, {
+      //   duration: 280,
+      //   easing: Easing.out(Easing.cubic),
+      // });
+
+      // Backdrop is already solid (starts at 1); only image fades in
+      imageOpacity.value = withTiming(1, {
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+      });
 
       // Start chrome hide timer
       scheduleChromeHide();
@@ -329,6 +164,7 @@ export default memo(function ImageViewer({
       chromeOpacity.value = withTiming(0, { duration: 150 });
       backdropOpacity.value = withTiming(0, { duration: 200 });
       imageOpacity.value = withTiming(0, { duration: 180 });
+      // console.log("[IV] 5. withTiming animations STARTED", Date.now());
     }
   }, [visible]);
 
@@ -374,11 +210,7 @@ export default memo(function ImageViewer({
       runOnJS(showChrome)();
     })
     .onUpdate((e) => {
-      scale.value = clamp(
-        savedScale.value * e.scale,
-        MIN_SCALE,
-        MAX_SCALE
-      );
+      scale.value = clamp(savedScale.value * e.scale, MIN_SCALE, MAX_SCALE);
     })
     .onEnd(() => {
       // Snap back if over-zoomed past limits
@@ -395,13 +227,13 @@ export default memo(function ImageViewer({
       if (Math.abs(translateX.value) > maxX) {
         translateX.value = withSpring(
           clamp(translateX.value, -maxX, maxX),
-          SPRING_SOFT
+          SPRING_SOFT,
         );
       }
       if (Math.abs(translateY.value) > maxY) {
         translateY.value = withSpring(
           clamp(translateY.value, -maxY, maxY),
-          SPRING_SOFT
+          SPRING_SOFT,
         );
       }
       savedScale.value = scale.value;
@@ -412,6 +244,15 @@ export default memo(function ImageViewer({
   const panGesture = Gesture.Pan()
     .averageTouches(true)
     .onStart(() => {
+      // console.log(
+      //   "[IV] 8. PAN onStart - scale:",
+      //   scale.value,
+      //   "translateX:",
+      //   translateX.value,
+      //   "swipeY:",
+      //   swipeY.value,
+      // );
+
       cancelAnimation(translateX);
       cancelAnimation(translateY);
       savedX.value = translateX.value;
@@ -429,7 +270,7 @@ export default memo(function ImageViewer({
           e.translationY,
           [0, SCREEN.height * 0.5],
           [1, 0.2],
-          Extrapolation.CLAMP
+          Extrapolation.CLAMP,
         );
         return;
       }
@@ -439,25 +280,28 @@ export default memo(function ImageViewer({
 
       // Normal pan (clamped to image bounds)
       const { maxX, maxY } = getPanBounds(scale.value);
-      translateX.value = clamp(
-        savedX.value + e.translationX,
-        -maxX,
-        maxX
-      );
-      translateY.value = clamp(
-        savedY.value + e.translationY,
-        -maxY,
-        maxY
-      );
+      translateX.value = clamp(savedX.value + e.translationX, -maxX, maxX);
+      translateY.value = clamp(savedY.value + e.translationY, -maxY, maxY);
     })
     .onEnd((e) => {
       // Check swipe-to-close thresholds
       if (
         isSwipingToClose.value &&
-        (e.velocityY > SWIPE_CLOSE_VELOCITY || swipeY.value > SWIPE_CLOSE_DISTANCE)
+        (e.velocityY > SWIPE_CLOSE_VELOCITY ||
+          swipeY.value > SWIPE_CLOSE_DISTANCE)
       ) {
-        // Animate off screen then call onClose
-        swipeY.value = withTiming(SCREEN.height, { duration: 280 });
+        // // Animate off screen then call onClose
+        // swipeY.value = withTiming(SCREEN.height, { duration: 280 });
+        // backdropOpacity.value = withTiming(0, { duration: 240 }, () => {
+        //   runOnJS(onClose)();
+        // });
+
+        // Animate off screen then call onClose.
+        // Reset swipeY immediately so if visible becomes true again before
+        // the animation completes, the reset is already committed.
+        swipeY.value = withTiming(SCREEN.height, { duration: 280 }, () => {
+          swipeY.value = 0;
+        });
         backdropOpacity.value = withTiming(0, { duration: 240 }, () => {
           runOnJS(onClose)();
         });
@@ -522,11 +366,11 @@ export default memo(function ImageViewer({
           scale.value = withSpring(newScale, SPRING_CONFIG);
           translateX.value = withSpring(
             clamp(originX, -maxX, maxX),
-            SPRING_CONFIG
+            SPRING_CONFIG,
           );
           translateY.value = withSpring(
             clamp(originY, -maxY, maxY),
-            SPRING_CONFIG
+            SPRING_CONFIG,
           );
           savedScale.value = newScale;
         }
@@ -544,7 +388,7 @@ export default memo(function ImageViewer({
 
   const composed = Gesture.Simultaneous(
     pinchGesture,
-    Gesture.Race(panGesture, tapGesture)
+    Gesture.Race(panGesture, tapGesture),
   );
 
   // ─── Animated styles ──────────────────────────────────────────────────
@@ -555,9 +399,7 @@ export default memo(function ImageViewer({
 
   const imageContainerStyle = useAnimatedStyle(() => ({
     opacity: imageOpacity.value,
-    transform: [
-      { translateY: swipeY.value },
-    ],
+    transform: [{ translateY: swipeY.value }],
   }));
 
   const imageTransformStyle = useAnimatedStyle(() => ({
@@ -575,7 +417,8 @@ export default memo(function ImageViewer({
 
   // ─── Render───────────────────────────────────────────────────────────
 
-  if (!visible && imageOpacity.value === 0) return null;
+  // if (!visible && imageOpacity.value === 0) return null;
+  if (!visible) return null;
 
   return (
     <Modal
@@ -589,7 +432,9 @@ export default memo(function ImageViewer({
 
       <GestureHandlerRootView style={styles.root}>
         {/* Backdrop */}
-        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]} />
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}
+        />
 
         {/* Gesture layer */}
         <GestureDetector gesture={composed}>
@@ -599,13 +444,25 @@ export default memo(function ImageViewer({
                 source={{ uri: imageUri }}
                 style={[styles.image, imageTransformStyle]}
                 resizeMode="contain"
+                // onLoadStart={() =>
+                //   console.log("[IV] 6. Image onLoadStart", Date.now())
+                // }
+                // onLoad={() =>
+                //   console.log(
+                //     "[IV] 7. Image onLoad (decode complete)",
+                //     Date.now(),
+                //   )
+                // }
               />
             )}
           </Animated.View>
         </GestureDetector>
 
         {/* Chrome — header + hint, auto-hides */}
-        <Animated.View style={[StyleSheet.absoluteFill, styles.chromeLayer, chromeStyle]} pointerEvents="box-none">
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.chromeLayer, chromeStyle]}
+          pointerEvents="box-none"
+        >
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerGlass}>
@@ -642,9 +499,14 @@ export default memo(function ImageViewer({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  // root: {
+  //   flex: 1,
+  //   backgroundColor: "transparent",
+  // } as ViewStyle,
+
   root: {
     flex: 1,
-    backgroundColor: "transparent",
+    backgroundColor: "#000",
   } as ViewStyle,
 
   backdrop: {

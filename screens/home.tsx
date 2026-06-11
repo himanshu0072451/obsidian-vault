@@ -4,7 +4,6 @@ import React, {
   useState,
   useRef,
   memo,
-  useMemo,
 } from "react";
 import {
   View,
@@ -65,16 +64,12 @@ export default function HomeScreen() {
   } = useVaultOperations();
 
   // Single source of truth for vault file list
-  // const [vaultFiles, setVaultFiles] = useState<VaultFile[]>([]);
-  // Master list — full vault contents from disk, never filtered.
-  const [allFiles, setAllFiles] = useState<VaultFile[]>([]);
+  const [vaultFiles, setVaultFiles] = useState<VaultFile[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Decrypt state
   const [isDecrypting, setIsDecrypting] = useState(false);
-  const [decryptingFileName, setDecryptingFileName] = useState<string | null>(
-    null,
-  );
+  const [decryptingFileName, setDecryptingFileName] = useState<string | null>(null);
 
   // Preview state
   const [previewUri, setPreviewUri] = useState<string | null>(null);
@@ -84,35 +79,26 @@ export default function HomeScreen() {
   const activeTempUri = useRef<string | null>(null);
 
   // Album filter: undefined = All, null = root only, string = specific album
-  const [selectedAlbum, setSelectedAlbum] = useState<string | null | undefined>(
-    undefined,
-  );
-
+  const [selectedAlbum, setSelectedAlbum] = useState<string | null | undefined>(undefined);
   // Favorites filter — cross-cutting, independent of album selection
   const [showFavorites, setShowFavorites] = useState(false);
 
   // Album action sheet
-  const [sheetMode, setSheetMode] = useState<AlbumActionSheetMode>("create");
+  const [sheetMode, setSheetMode] = useState<AlbumActionSheetMode>('create');
   const [sheetTarget, setSheetTarget] = useState<string | undefined>(undefined);
   const [sheetVisible, setSheetVisible] = useState(false);
 
   // Decoy vault setup sheet
   const [decoySheetVisible, setDecoySheetVisible] = useState(false);
 
-  // ─── Derived visible list (no I/O — pure in-memory filter) ───────────────
-
-  const visibleFiles = useMemo(() => {
-    if (showFavorites) return allFiles.filter((f) => f.isFavorite);
-    if (selectedAlbum === undefined) return allFiles;
-    return allFiles.filter((f) => f.album === (selectedAlbum ?? null));
-  }, [allFiles, showFavorites, selectedAlbum]);
-
   // ─── Data loading ────────────────────────────────────────────────────────
 
   const loadFiles = useCallback(async () => {
-    const files = await vault.getVaultFiles();
-    setAllFiles(files);
-  }, [vault]);
+    // When showFavorites is active, fetch all files then filter — favorites
+    // can span any album so we always fetch the full list first.
+    const all = await vault.getVaultFiles(showFavorites ? undefined : selectedAlbum);
+    setVaultFiles(showFavorites ? all.filter((f) => f.isFavorite) : all);
+  }, [vault, selectedAlbum, showFavorites]);
 
   useEffect(() => {
     loadFiles();
@@ -130,74 +116,54 @@ export default function HomeScreen() {
     try {
       const assets = await pickImages();
       if (assets.length === 0) return;
-      // console.log("selectedAlbum: " + selectedAlbum);
       await encryptImages(assets, passcode, false, selectedAlbum ?? null);
       // Reload the visible list after successful encryption
       await loadFiles();
     } catch (e) {
       console.error("[Encrypt]", e);
     }
-  }, [pickImages, encryptImages, passcode, loadFiles, selectedAlbum]);
-
-  // ─── Decrypt ─────────────────────────────────────────────────────────────
+  }, [pickImages, encryptImages, passcode, loadFiles]);
 
   const handleSecureCamera = useCallback(async () => {
-    try {
-      // console.log("Starting camera");
-
-      const captured = await captureAndEncrypt(passcode, selectedAlbum ?? null);
-
-      // console.log("Camera returned", captured);
-
-      if (captured) {
-        // console.log("Loading files...");
-        await loadFiles();
-      }
-
-      // console.log("Done");
-    } catch (err) {
-      console.error("Secure camera error:", err);
-    }
+    const captured = await captureAndEncrypt(passcode, selectedAlbum ?? null);
+    if (captured) await loadFiles();
   }, [captureAndEncrypt, passcode, selectedAlbum, loadFiles]);
+
+  // ─── Decrypt ─────────────────────────────────────────────────────────────
 
   const handleDecrypt = useCallback(
     async (file: VaultFile) => {
       try {
-        // console.log("[IV] 1. handleDecrypt START", Date.now());
         setIsDecrypting(true);
         setDecryptingFileName(file.name.replace(".vault", ""));
 
         const outPath = await decryptImage(
           file.uri,
           passcode,
-          FileSystem.cacheDirectory!,
+          FileSystem.cacheDirectory!
         );
 
-        //  console.log(
-        //     "[IV] 2. decryptImage DONE, calling setPreviewUri",
-        //     Date.now(),
-        //   );
         activeTempUri.current = outPath;
         setPreviewFileName(file.name.replace(".vault", ""));
         setPreviewUri(outPath);
-        // console.log("[IV] 3. setPreviewUri CALLED", Date.now());
       } catch (e: any) {
         const isWrongPasscode =
-          e?.message?.includes("padding") || e?.message?.includes("passcode");
+          e?.message?.includes("padding") ||
+          e?.message?.includes("passcode");
 
         Alert.alert(
           "Decryption Failed",
           isWrongPasscode
             ? "Incorrect passcode. This file cannot be unlocked."
             : "This file may be corrupted or from an incompatible version.",
-          [{ text: "OK" }],
+          [{ text: "OK" }]
         );
       } finally {
         setIsDecrypting(false);
         setDecryptingFileName(null);
       }
     },
-    [passcode],
+    [passcode]
   );
 
   // ─── Preview close — always clean up temp file ────────────────────────────
@@ -228,41 +194,22 @@ export default function HomeScreen() {
               await loadFiles();
             },
           },
-        ],
+        ]
       );
     },
-    [loadFiles],
+    [loadFiles]
   );
 
   // ─── Favorites ────────────────────────────────────────────────────────────
 
-  // const handleToggleFavorite = useCallback(
-  //   async (file: VaultFile) => {
-  //     if (file.isFavorite) {
-  //       await vault.removeFavorite(file.uri);
-  //     } else {
-  //       await vault.addFavorite(file.uri);
-  //     }
-  //     await loadFiles();
-  //   },
-  //   [vault, loadFiles],
-  // );
-
-  const handleToggleFavorite = useCallback(
-    async (file: VaultFile) => {
-      setAllFiles((prev) =>
-        prev.map((f) =>
-          f.uri === file.uri ? { ...f, isFavorite: !f.isFavorite } : f,
-        ),
-      );
-      if (file.isFavorite) {
-        await vault.removeFavorite(file.uri);
-      } else {
-        await vault.addFavorite(file.uri);
-      }
-    },
-    [vault],
-  );
+  const handleToggleFavorite = useCallback(async (file: VaultFile) => {
+    if (file.isFavorite) {
+      await vault.removeFavorite(file.uri);
+    } else {
+      await vault.addFavorite(file.uri);
+    }
+    await loadFiles();
+  }, [vault, loadFiles]);
 
   const handleFavoritesChip = useCallback(() => {
     setShowFavorites((prev) => !prev);
@@ -274,7 +221,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (albumError) {
-      Alert.alert("Album Error", albumError);
+      Alert.alert('Album Error', albumError);
       clearAlbumError();
     }
   }, [albumError]);
@@ -282,39 +229,33 @@ export default function HomeScreen() {
   // ─── Album sheet handlers ─────────────────────────────────────────────────
 
   const openCreateSheet = useCallback(() => {
-    setSheetMode("create");
+    setSheetMode('create');
     setSheetTarget(undefined);
     setSheetVisible(true);
   }, []);
 
-  const handleSheetConfirm = useCallback(
-    async (value: string) => {
-      setSheetVisible(false);
-      await createAlbum(value);
-    },
-    [createAlbum],
-  );
+  const handleSheetConfirm = useCallback(async (value: string) => {
+    setSheetVisible(false);
+    await createAlbum(value);
+  }, [createAlbum]);
 
   // ─── Decoy vault handlers ─────────────────────────────────────────────────
 
   const openDecoySetup = useCallback(() => {
     Alert.alert(
-      "Set Up Decoy Vault",
-      "Create a separate vault with its own passcode. Entering that passcode will open this decoy vault instead of your real one.",
+      'Set Up Decoy Vault',
+      'Create a separate vault with its own passcode. Entering that passcode will open this decoy vault instead of your real one.',
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Continue", onPress: () => setDecoySheetVisible(true) },
-      ],
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: () => setDecoySheetVisible(true) },
+      ]
     );
   }, []);
 
-  const handleDecoyConfirm = useCallback(
-    async (newPasscode: string) => {
-      setDecoySheetVisible(false);
-      await setupDecoy(newPasscode);
-    },
-    [setupDecoy],
-  );
+  const handleDecoyConfirm = useCallback(async (newPasscode: string) => {
+    setDecoySheetVisible(false);
+    await setupDecoy(newPasscode);
+  }, [setupDecoy]);
 
   // ─── Overlay state ────────────────────────────────────────────────────────
 
@@ -325,7 +266,8 @@ export default function HomeScreen() {
     encryptOp.status !== "idle" ? resetEncrypt : resetDecrypt;
 
   // ─── Derived stats ────────────────────────────────────────────────────────
-  const totalSize = visibleFiles.reduce((sum, f) => sum + f.size, 0);
+
+  const totalSize = vaultFiles.reduce((sum, f) => sum + f.size, 0);
 
   return (
     <SafeAreaView style={styles.root}>
@@ -353,7 +295,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.headerActions}>
             {/* Decoy setup — only visible on real vault before a decoy exists */}
-            {vaultContext === "real" && !hasDecoy && (
+            {vaultContext === 'real' && !hasDecoy && (
               <Pressable
                 onPress={openDecoySetup}
                 style={styles.headerBtn}
@@ -382,8 +324,7 @@ export default function HomeScreen() {
           style={styles.statsRow}
         >
           <StatCard
-            // value={vaultFiles.length}
-            value={visibleFiles.length}
+            value={vaultFiles.length}
             label="Encrypted"
             style={styles.statFlex}
           />
@@ -395,10 +336,7 @@ export default function HomeScreen() {
         </Animated.View>
 
         {/* ── Action ─────────────────────────────────────────────────────── */}
-        <Animated.View
-          entering={FadeInDown.delay(160).duration(400)}
-          style={styles.actionsCol}
-        >
+        <Animated.View entering={FadeInDown.delay(160).duration(400)} style={styles.actionsCol}>
           <ActionCard
             icon="🔒"
             title="Encrypt Images"
@@ -414,14 +352,10 @@ export default function HomeScreen() {
         </Animated.View>
 
         {/* ── Album filter ────────────────────────────────────────────────── */}
-
         <AlbumFilterBar
           albums={albums}
           selected={selectedAlbum}
-          onSelect={(album) => {
-            setSelectedAlbum(album);
-            setShowFavorites(false);
-          }}
+          onSelect={(album) => { setSelectedAlbum(album); setShowFavorites(false); }}
           onCreatePress={openCreateSheet}
           showFavorites={showFavorites}
           onFavoritesPress={handleFavoritesChip}
@@ -434,20 +368,16 @@ export default function HomeScreen() {
         >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Vault Contents</Text>
-            {/* {vaultFiles.length > 0 && (
+            {vaultFiles.length > 0 && (
               <Text style={styles.sectionCount}>{vaultFiles.length}</Text>
-            )} */}
-
-            {visibleFiles.length > 0 && (
-              <Text style={styles.sectionCount}>{visibleFiles.length}</Text>
             )}
           </View>
 
-          {visibleFiles.length === 0 ? (
+          {vaultFiles.length === 0 ? (
             <EmptyVault />
           ) : (
             <View style={styles.fileList}>
-              {visibleFiles.map((file, index) => (
+              {vaultFiles.map((file, index) => (
                 <VaultFileCard
                   key={file.uri}
                   file={file}
@@ -472,10 +402,7 @@ export default function HomeScreen() {
 
       {/* ── Decrypt loading overlay ────────────────────────────────────────── */}
       {isDecrypting && (
-        <Animated.View
-          entering={FadeIn.duration(150)}
-          style={styles.decryptOverlay}
-        >
+        <Animated.View entering={FadeIn.duration(150)} style={styles.decryptOverlay}>
           <View style={styles.decryptSheet}>
             <ActivityIndicator size="large" color={Colors.silver} />
             <Text style={styles.decryptTitle}>Decrypting</Text>
@@ -559,7 +486,7 @@ const VaultFileCard = memo(function VaultFileCard({
   const handleDeletePress = useCallback(() => {
     deleteScale.value = withSequence(
       withTiming(0.85, { duration: 80 }),
-      withTiming(1, { duration: 80 }),
+      withTiming(1, { duration: 80 })
     );
     setTimeout(onDelete, 100);
   }, [onDelete]);
@@ -567,94 +494,71 @@ const VaultFileCard = memo(function VaultFileCard({
   const handleStarPress = useCallback(() => {
     starScale.value = withSequence(
       withSpring(1.3, { damping: 12, stiffness: 300 }),
-      withSpring(1, { damping: 15, stiffness: 300 }),
+      withSpring(1, { damping: 15, stiffness: 300 })
     );
     onToggleFavorite();
   }, [onToggleFavorite]);
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 40).duration(350)}>
-      <Animated.View style={cardAnimStyle}>
-        <Pressable
-          onPress={onPress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          accessibilityRole="button"
-          accessibilityLabel={`Decrypt and preview ${file.name.replace(".vault", "")}`}
-        >
-          <View style={styles.fileCard}>
-            {/* Left: icon + meta */}
-            <View style={styles.fileLeft}>
-              <View style={styles.fileIconWrap}>
-                <Text style={styles.fileIconText}>⬡</Text>
-              </View>
-              <View style={styles.fileMeta}>
-                <Text style={styles.fileName} numberOfLines={1}>
-                  {file.name.replace(".vault", "")}
-                </Text>
-                <Text style={styles.fileDetail}>
-                  {formatFileSize(file.size)}
-                  {"  ·  "}
-                  {formatRelativeTime(file.createdAt * 1000)}
-                </Text>
-              </View>
+    <Animated.View
+      entering={FadeInDown.delay(index * 40).duration(350)}
+      style={cardAnimStyle}
+    >
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={`Decrypt and preview ${file.name.replace(".vault", "")}`}
+      >
+        <View style={styles.fileCard}>
+          {/* Left: icon + meta */}
+          <View style={styles.fileLeft}>
+            <View style={styles.fileIconWrap}>
+              <Text style={styles.fileIconText}>⬡</Text>
             </View>
-
-            {/* Right: delete + chevron */}
-            {/* <View style={styles.fileActions}>
-              <Animated.View style={deleteAnimStyle}>
-                <Pressable
-                  onPress={handleDeletePress}
-                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
-                  style={styles.deleteBtn}
-                >
-                  <Text style={styles.deleteIcon}>✕</Text>
-                </Pressable>
-              </Animated.View>
-              <Text style={styles.chevron}>›</Text>
-            </View> */}
-
-            <View style={styles.fileActions}>
-              <Animated.View style={starAnimStyle}>
-                <Pressable
-                  onPress={handleStarPress}
-                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    file.isFavorite
-                      ? "Remove from favorites"
-                      : "Add to favorites"
-                  }
-                  style={styles.starBtn}
-                >
-                  <Text
-                    style={[
-                      styles.starIcon,
-                      file.isFavorite && styles.starIconActive,
-                    ]}
-                  >
-                    ★
-                  </Text>
-                </Pressable>
-              </Animated.View>
-              <Animated.View style={deleteAnimStyle}>
-                <Pressable
-                  onPress={handleDeletePress}
-                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
-                  style={styles.deleteBtn}
-                >
-                  <Text style={styles.deleteIcon}>✕</Text>
-                </Pressable>
-              </Animated.View>
-              <Text style={styles.chevron}>›</Text>
+            <View style={styles.fileMeta}>
+              <Text style={styles.fileName} numberOfLines={1}>
+                {file.name.replace(".vault", "")}
+              </Text>
+              <Text style={styles.fileDetail}>
+                {formatFileSize(file.size)}
+                {"  ·  "}
+                {formatRelativeTime(file.createdAt * 1000)}
+              </Text>
             </View>
           </View>
-        </Pressable>
-      </Animated.View>
+
+          {/* Right: star + delete + chevron */}
+          <View style={styles.fileActions}>
+            <Animated.View style={starAnimStyle}>
+              <Pressable
+                onPress={handleStarPress}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel={file.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                style={styles.starBtn}
+              >
+                <Text style={[styles.starIcon, file.isFavorite && styles.starIconActive]}>
+                  ★
+                </Text>
+              </Pressable>
+            </Animated.View>
+            <Animated.View style={deleteAnimStyle}>
+              <Pressable
+                onPress={handleDeletePress}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
+                style={styles.deleteBtn}
+              >
+                <Text style={styles.deleteIcon}>✕</Text>
+              </Pressable>
+            </Animated.View>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+        </View>
+      </Pressable>
     </Animated.View>
   );
 });
