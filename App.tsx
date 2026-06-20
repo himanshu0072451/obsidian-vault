@@ -80,11 +80,14 @@ export default function App() {
   useEffect(() => {
     return activateScreenSecurity();
   }, []);
+
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
-      <AppNavigator />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <StatusBar style="light" />
+        <AppNavigator />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
 

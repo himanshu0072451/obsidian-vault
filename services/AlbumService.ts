@@ -12,7 +12,6 @@
  *   const svc = new AlbumService(vault);  // vault = VaultStorage instance
  */
 
-import * as FileSystem from 'expo-file-system';
 import { VaultStorage } from './storage/VaultStorage';
 import type { VaultFile } from './storage/types';
 import {
@@ -102,28 +101,32 @@ export class AlbumService {
   }
 
   /**
-   * Delete an album and all encrypted files inside it.
+   * Delete an album.
+   * Files inside are moved to the vault root before the directory is removed
+   * so no encrypted content is ever destroyed by a delete operation.
    * @throws {AlbumNotFoundError} if the album does not exist
    */
   async deleteAlbum(name: string): Promise<void> {
     const validated = this._validateName(name);
 
-    // Check existence before delegating — deleteAlbum is idempotent in
-    // VaultStorage, so we'd never know if the name was wrong otherwise.
     const albums = await this.vault.listAlbums();
     if (!albums.includes(validated)) {
       throw new AlbumNotFoundError(validated);
     }
 
-    // Count files first so the activity entry is accurate
+    // Move all files to vault root before deleting the directory.
+    // This ensures no encrypted files are ever destroyed by a delete.
     const files = await this.vault.getVaultFiles(validated);
-    const fileCount = files.length;
+    for (const file of files) {
+      await this.vault.moveFile(file.uri, null);
+    }
 
+    // Directory is now empty — safe to delete
     await this.vault.deleteAlbum(validated);
 
     await this.vault.logActivity({
       type: 'album_delete',
-      fileCount,
+      fileCount: files.length,
       timestamp: Date.now(),
       detail: validated,
     });

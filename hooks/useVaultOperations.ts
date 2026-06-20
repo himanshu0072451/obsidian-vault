@@ -3,8 +3,8 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import { encryptImage, decryptImage } from "../services/encryption";
-import { capturePhoto } from "../services/SecureCameraService";
 import { VAULT_EXTENSION } from "../services/storage";
+import { capturePhoto } from "../services/SecureCameraService";
 import { useVault } from "./useAuth";
 import type { VaultFile } from "../services/storage";
 
@@ -79,8 +79,11 @@ export function useVaultOperations() {
             error: null,
           });
 
-          const val = await encryptImage(asset.uri, passcode, outDir);
-          // console.log(`Encrypted ${asset.uri} to ${val}`);
+          const outPath = await encryptImage(asset.uri, passcode, outDir);
+
+          // Awaited — must not run concurrently; each call does read→modify→write
+          // on the index and concurrent calls would overwrite each other.
+          await vault.recordEncryptedFile(outPath, albumName ?? null);
 
           if (deleteOriginal) {
             await FileSystem.deleteAsync(asset.uri, { idempotent: true });
@@ -195,10 +198,14 @@ export function useVaultOperations() {
 
       try {
         const outDir = await vault.ensureAlbumDir(albumName ?? null);
-        await encryptImage(tempUri, passcode, outDir);
+        const outPath = await encryptImage(tempUri, passcode, outDir);
 
         // Always delete the temp camera file — it must never persist unencrypted
         await FileSystem.deleteAsync(tempUri, { idempotent: true });
+
+        // Awaited for consistency with encryptImages — index write must complete
+        // before we return so the caller's subsequent loadFiles() sees the entry.
+        await vault.recordEncryptedFile(outPath, albumName ?? null);
 
         await vault.logActivity({
           type: "encrypt",
