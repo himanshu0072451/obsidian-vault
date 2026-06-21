@@ -44,6 +44,172 @@ import { DecoySetupSheet } from "../components/DecoySetupSheet";
 import { MoveFileSheet } from "../components/MoveFileSheet";
 import { useAlbums } from "../hooks/useAlbums";
 
+// ─── ListHeader props ─────────────────────────────────────────────────────────
+// Defined outside HomeScreen so the reference is stable across re-renders.
+// Passing a JSX variable to FlashList ListHeaderComponent causes the header
+// to remount on every parent re-render, re-firing all entering animations and
+// disrupting modal presentation on Android.
+
+interface ListHeaderProps {
+  visibleFiles: VaultFile[];
+  totalSize: number;
+  vaultContext: string | null;
+  hasDecoy: boolean;
+  albums: string[];
+  selectedAlbum: string | null | undefined;
+  showFavorites: boolean;
+  onDecoySetup: () => void;
+  onLock: () => void;
+  onEncrypt: () => void;
+  onSecureCamera: () => void;
+  onSelectAlbum: (album: string | null | undefined) => void;
+  onCreateAlbum: () => void;
+  onFavoritesPress: () => void;
+  onRenameAlbum: (name: string) => void;
+  onDeleteAlbum: (name: string) => void;
+}
+
+const ListHeader = memo(function ListHeader({
+  visibleFiles,
+  totalSize,
+  vaultContext,
+  hasDecoy,
+  albums,
+  selectedAlbum,
+  showFavorites,
+  onDecoySetup,
+  onLock,
+  onEncrypt,
+  onSecureCamera,
+  onSelectAlbum,
+  onCreateAlbum,
+  onFavoritesPress,
+  onRenameAlbum,
+  onDeleteAlbum,
+}: ListHeaderProps) {
+  return (
+    <View style={styles.listHeader}>
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <Animated.View
+        entering={FadeInDown.delay(0).duration(400)}
+        style={styles.header}
+      >
+        <View>
+          <Text style={styles.greeting}>Vault</Text>
+          <Text style={styles.subGreeting}>Your encrypted storage</Text>
+        </View>
+        <View style={styles.headerActions}>
+          {vaultContext === "real" && !hasDecoy && (
+            <Pressable
+              onPress={onDecoySetup}
+              style={styles.headerBtn}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.headerBtnIcon}>⋯</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={onLock}
+            style={styles.lockBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Lock vault"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.lockIcon}>⎋</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+
+      {/* ── Stats ────────────────────────────────────────────────────────── */}
+      <Animated.View
+        entering={FadeInDown.delay(80).duration(400)}
+        style={styles.statsRow}
+      >
+        <StatCard
+          value={visibleFiles.length}
+          label="Encrypted"
+          style={styles.statFlex}
+        />
+        <StatCard
+          value={formatFileSize(totalSize)}
+          label="Total size"
+          style={styles.statFlex}
+        />
+      </Animated.View>
+
+      {/* ── Actions ──────────────────────────────────────────────────────── */}
+      <Animated.View
+        entering={FadeInDown.delay(160).duration(400)}
+        style={styles.actionsCol}
+      >
+        <ActionCard
+          icon="🔒"
+          title="Encrypt Images"
+          description="Select photos from your library to lock in the vault"
+          onPress={onEncrypt}
+        />
+        <ActionCard
+          icon="📷"
+          title="Secure Camera"
+          description="Capture a photo and encrypt it immediately"
+          onPress={onSecureCamera}
+        />
+      </Animated.View>
+
+      {/* ── Album filter ─────────────────────────────────────────────────── */}
+      <AlbumFilterBar
+        albums={albums}
+        selected={selectedAlbum}
+        onSelect={onSelectAlbum}
+        onCreatePress={onCreateAlbum}
+        showFavorites={showFavorites}
+        onFavoritesPress={onFavoritesPress}
+      />
+
+      {/* ── Section header ───────────────────────────────────────────────── */}
+      <Animated.View entering={FadeInDown.delay(240).duration(400)}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Vault Contents</Text>
+          {visibleFiles.length > 0 && (
+            <Text style={styles.sectionCount}>{visibleFiles.length}</Text>
+          )}
+          {typeof selectedAlbum === "string" && (
+            <>
+              <Pressable
+                onPress={() => onRenameAlbum(selectedAlbum)}
+                style={styles.sectionBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Rename album"
+              >
+                <Text style={styles.sectionBtnText}>Rename</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onDeleteAlbum(selectedAlbum)}
+                style={[styles.sectionBtn, styles.sectionBtnDestructive]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Delete album"
+              >
+                <Text
+                  style={[
+                    styles.sectionBtnText,
+                    styles.sectionBtnTextDestructive,
+                  ]}
+                >
+                  Delete
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </Animated.View>
+    </View>
+  );
+});
+
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -68,62 +234,41 @@ export default function HomeScreen() {
     resetDecrypt,
   } = useVaultOperations();
 
-  // Master list — always the full vault contents from disk.
-  // Never filtered here; filtering is done in visibleFiles below.
   const [allFiles, setAllFiles] = useState<VaultFile[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Decrypt state
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptingFileName, setDecryptingFileName] = useState<string | null>(
     null,
   );
-
-  // Preview state
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
-
-  // Tracks the active temp file so we can delete it when preview closes
   const activeTempUri = useRef<string | null>(null);
-
-  // Album filter: undefined = All, null = root only, string = specific album
   const [selectedAlbum, setSelectedAlbum] = useState<string | null | undefined>(
     undefined,
   );
-  // Favorites filter — cross-cutting, independent of album selection
   const [showFavorites, setShowFavorites] = useState(false);
-
-  // Album action sheet
   const [sheetMode, setSheetMode] = useState<AlbumActionSheetMode>("create");
   const [sheetTarget, setSheetTarget] = useState<string | undefined>(undefined);
   const [sheetVisible, setSheetVisible] = useState(false);
-
-  // Decoy vault setup sheet
   const [decoySheetVisible, setDecoySheetVisible] = useState(false);
-
-  // Move file sheet
   const [moveSheetVisible, setMoveSheetVisible] = useState(false);
   const [moveSheetFile, setMoveSheetFile] = useState<VaultFile | null>(null);
 
-  // ─── Derived visible list (no I/O — pure in-memory filter) ───────────────
+  // Multi-select
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedUris, setSelectedUris] = useState<Set<string>>(new Set());
+
+  // ─── Derived visible list ─────────────────────────────────────────────────
 
   const visibleFiles = useMemo(() => {
-    if (showFavorites) {
-      return allFiles.filter((f) => f.isFavorite);
-    }
-    if (selectedAlbum === undefined) {
-      return allFiles; // All
-    }
-    // null = root only, string = specific album
+    if (showFavorites) return allFiles.filter((f) => f.isFavorite);
+    if (selectedAlbum === undefined) return allFiles;
     return allFiles.filter((f) => f.album === (selectedAlbum ?? null));
   }, [allFiles, showFavorites, selectedAlbum]);
 
-  // ─── Data loading — reads disk only on real mutations, never on filter changes
+  // ─── Data loading ─────────────────────────────────────────────────────────
 
   const loadFiles = useCallback(async () => {
-    // Always fetch the full unfiltered list. Filtering is handled by
-    // visibleFiles above so changing selectedAlbum or showFavorites
-    // never triggers a disk read.
     const files = await vault.getVaultFiles();
     setAllFiles(files);
   }, [vault]);
@@ -145,7 +290,6 @@ export default function HomeScreen() {
       const assets = await pickImages();
       if (assets.length === 0) return;
       await encryptImages(assets, passcode, false, selectedAlbum ?? null);
-      // Reload the visible list after successful encryption
       await loadFiles();
     } catch (e) {
       console.error("[Encrypt]", e);
@@ -164,20 +308,17 @@ export default function HomeScreen() {
       try {
         setIsDecrypting(true);
         setDecryptingFileName(file.name.replace(".vault", ""));
-
         const outPath = await decryptImage(
           file.uri,
           passcode,
           FileSystem.cacheDirectory!,
         );
-
         activeTempUri.current = outPath;
         setPreviewFileName(file.name.replace(".vault", ""));
         setPreviewUri(outPath);
       } catch (e: any) {
         const isWrongPasscode =
           e?.message?.includes("padding") || e?.message?.includes("passcode");
-
         Alert.alert(
           "Decryption Failed",
           isWrongPasscode
@@ -192,8 +333,6 @@ export default function HomeScreen() {
     },
     [passcode],
   );
-
-  // ─── Preview close — always clean up temp file ────────────────────────────
 
   const handleClosePreview = useCallback(async () => {
     setPreviewUri(null);
@@ -231,15 +370,11 @@ export default function HomeScreen() {
 
   const handleToggleFavorite = useCallback(
     async (file: VaultFile) => {
-      // Optimistic update — flip isFavorite in allFiles immediately so the
-      // star responds instantly with no visible lag.
       setAllFiles((prev) =>
         prev.map((f) =>
           f.uri === file.uri ? { ...f, isFavorite: !f.isFavorite } : f,
         ),
       );
-      // Persist to SecureStore in the background. If it fails, the in-memory
-      // state is ahead of storage but the next loadFiles() will correct it.
       if (file.isFavorite) {
         await vault.removeFavorite(file.uri);
       } else {
@@ -251,11 +386,10 @@ export default function HomeScreen() {
 
   const handleFavoritesChip = useCallback(() => {
     setShowFavorites((prev) => !prev);
-    // Clear album selection when switching to favorites view
     setSelectedAlbum(undefined);
   }, []);
 
-  // ─── Album error display ──────────────────────────────────────────────────
+  // ─── Album error ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (albumError) {
@@ -291,16 +425,14 @@ export default function HomeScreen() {
         await createAlbum(value);
       } else if (sheetMode === "rename" && sheetTarget) {
         const success = await renameAlbum(sheetTarget, value);
-        // Keep the filter chip pointing at the renamed album
         if (success && selectedAlbum === sheetTarget) {
           setSelectedAlbum(value);
         }
+        await loadFiles(); // ADD THIS
       } else if (sheetMode === "delete" && sheetTarget) {
         const success = await deleteAlbum(sheetTarget);
-        if (success && selectedAlbum === sheetTarget) {
+        if (success && selectedAlbum === sheetTarget)
           setSelectedAlbum(undefined);
-        }
-        // Files were moved to root — reload the full list
         await loadFiles();
       }
     },
@@ -315,6 +447,8 @@ export default function HomeScreen() {
     ],
   );
 
+  // ─── Move file ────────────────────────────────────────────────────────────
+
   const handleMoveFile = useCallback((file: VaultFile) => {
     setMoveSheetFile(file);
     setMoveSheetVisible(true);
@@ -326,17 +460,13 @@ export default function HomeScreen() {
       if (!moveSheetFile) return;
       const file = moveSheetFile;
       setMoveSheetFile(null);
-
-      // Optimistic update — card reflects new album immediately
       setAllFiles((prev) =>
         prev.map((f) =>
           f.uri === file.uri ? { ...f, album: targetAlbum } : f,
         ),
       );
-
       try {
         const newUri = await moveFile(file.uri, targetAlbum);
-        // Patch URI if it changed (directory prefix changes with album)
         if (newUri && newUri !== file.uri) {
           setAllFiles((prev) =>
             prev.map((f) =>
@@ -347,7 +477,6 @@ export default function HomeScreen() {
           );
         }
       } catch {
-        // Rollback optimistic update — restore original album and URI
         setAllFiles((prev) =>
           prev.map((f) =>
             f.uri === file.uri ? { ...f, album: file.album, uri: file.uri } : f,
@@ -358,7 +487,181 @@ export default function HomeScreen() {
     [moveSheetFile, moveFile],
   );
 
-  // ─── Decoy vault handlers ─────────────────────────────────────────────────
+  // ─── Multi-select ─────────────────────────────────────────────────────────
+
+  // Clear selection whenever the visible filter changes — acting on
+  // hidden items would be surprising and is never the user's intent.
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedUris(new Set());
+  }, [selectedAlbum, showFavorites]);
+
+  const handleEnterSelection = useCallback((uri: string) => {
+    setSelectionMode(true);
+    setSelectedUris(new Set([uri]));
+  }, []);
+
+  const handleToggleSelection = useCallback((uri: string) => {
+    setSelectedUris((prev) => {
+      const next = new Set(prev);
+      if (next.has(uri)) {
+        next.delete(uri);
+      } else {
+        next.add(uri);
+      }
+      if (next.size === 0) setSelectionMode(false);
+      return next;
+    });
+  }, []);
+
+  const handleCancelSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedUris(new Set());
+  }, []);
+
+  // Toggles between selecting every currently visible file and clearing
+  // the selection. "All visible" respects whatever filter is active
+  // (album / favorites) — visibleFiles already encodes that filter.
+  const allVisibleSelected =
+    visibleFiles.length > 0 &&
+    visibleFiles.every((f) => selectedUris.has(f.uri));
+
+  const handleSelectAll = useCallback(() => {
+    if (allVisibleSelected) {
+      setSelectedUris(new Set());
+      setSelectionMode(false);
+    } else {
+      setSelectedUris(new Set(visibleFiles.map((f) => f.uri)));
+      setSelectionMode(true);
+    }
+  }, [allVisibleSelected, visibleFiles]);
+
+  const selectedFiles = useMemo(
+    () => allFiles.filter((f) => selectedUris.has(f.uri)),
+    [allFiles, selectedUris],
+  );
+
+  const handleBatchDelete = useCallback(() => {
+    const count = selectedFiles.length;
+    if (count === 0) return;
+    Alert.alert(
+      "Delete Encrypted Files",
+      `Permanently delete ${count} file${count === 1 ? "" : "s"}?\n\nThis cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Sequential — matches the proven pattern from batch encrypt;
+              // avoids concurrent index read-modify-write races.
+              for (const file of selectedFiles) {
+                await vault.deleteVaultFile(file.uri);
+              }
+            } catch (e) {
+              console.error("[BatchDelete]", e);
+            } finally {
+              // Always clear selection and resync from storage, regardless
+              // of whether every file in the loop succeeded — prevents the
+              // selection bar from being stuck open on partial failure.
+              setSelectionMode(false);
+              setSelectedUris(new Set());
+              await loadFiles();
+            }
+          },
+        },
+      ],
+    );
+  }, [selectedFiles, loadFiles]);
+
+  const handleBatchFavorite = useCallback(async () => {
+    const allFavorited = selectedFiles.every((f) => f.isFavorite);
+    const succeeded: string[] = [];
+
+    try {
+      for (const file of selectedFiles) {
+        if (allFavorited) {
+          if (file.isFavorite) await vault.removeFavorite(file.uri);
+        } else {
+          if (!file.isFavorite) await vault.addFavorite(file.uri);
+        }
+        succeeded.push(file.uri);
+      }
+      // Only reached if every file in the loop succeeded — safe to
+      // optimistically update all of them at once.
+      setAllFiles((prev) =>
+        prev.map((f) =>
+          selectedUris.has(f.uri) ? { ...f, isFavorite: !allFavorited } : f,
+        ),
+      );
+    } catch (e) {
+      console.error("[BatchFavorite]", e);
+      // A storage write failed partway through. `succeeded` holds the
+      // URIs that were actually written; the rest were never persisted.
+      // Resync from storage rather than guessing which UI state is correct —
+      // this guarantees the displayed favorite state always matches what
+      // was actually written, never showing a favorite that failed to save.
+      await loadFiles();
+    } finally {
+      setSelectionMode(false);
+      setSelectedUris(new Set());
+    }
+  }, [selectedFiles, selectedUris, loadFiles]);
+
+  const openBatchMoveSheet = useCallback(() => {
+    setMoveSheetVisible(true);
+  }, []);
+
+  const handleBatchMoveSelect = useCallback(
+    async (targetAlbum: string | null) => {
+      setMoveSheetVisible(false);
+      const files = selectedFiles;
+      setSelectionMode(false);
+      setSelectedUris(new Set());
+
+      setAllFiles((prev) =>
+        prev.map((f) =>
+          selectedUris.has(f.uri) ? { ...f, album: targetAlbum } : f,
+        ),
+      );
+
+      for (const file of files) {
+        try {
+          const newUri = await moveFile(file.uri, targetAlbum);
+          if (newUri && newUri !== file.uri) {
+            setAllFiles((prev) =>
+              prev.map((f) =>
+                f.uri === file.uri
+                  ? { ...f, uri: newUri, album: targetAlbum }
+                  : f,
+              ),
+            );
+          }
+        } catch {
+          setAllFiles((prev) =>
+            prev.map((f) =>
+              f.uri === file.uri
+                ? { ...f, album: file.album, uri: file.uri }
+                : f,
+            ),
+          );
+        }
+      }
+    },
+    [selectedFiles, selectedUris, moveFile],
+  );
+
+  // True when every selected file shares the same album — passed to
+  // MoveFileSheet as currentAlbum so its destination list excludes it,
+  // matching single-file move semantics exactly.
+  const batchCurrentAlbum = useMemo(() => {
+    if (selectedFiles.length === 0) return null;
+    const first = selectedFiles[0].album;
+    return selectedFiles.every((f) => f.album === first) ? first : null;
+  }, [selectedFiles]);
+
+  // ─── Decoy vault ─────────────────────────────────────────────────────────
 
   const openDecoySetup = useCallback(() => {
     Alert.alert(
@@ -379,6 +682,14 @@ export default function HomeScreen() {
     [setupDecoy],
   );
 
+  // ─── Stable album selection handler for ListHeader ────────────────────────
+  // Defined here and passed as prop so ListHeader doesn't need inline arrows
+
+  const handleSelectAlbum = useCallback((album: string | null | undefined) => {
+    setSelectedAlbum(album);
+    setShowFavorites(false);
+  }, []);
+
   // ─── Overlay state ────────────────────────────────────────────────────────
 
   const isShowingProgress =
@@ -386,159 +697,81 @@ export default function HomeScreen() {
   const activeOp = encryptOp.status !== "idle" ? encryptOp : decryptOp;
   const resetActiveOp =
     encryptOp.status !== "idle" ? resetEncrypt : resetDecrypt;
-
-  // ─── Derived stats ────────────────────────────────────────────────────────
-
-  const totalSize = visibleFiles.reduce((sum, f) => sum + f.size, 0);
-
-  // ─── ListHeaderComponent ──────────────────────────────────────────────────
-  // Everything above the file list. Computed inside render so all state and
-  // handlers are in scope. The header mounts once and does not participate in
-  // FlashList's item recycling, so FadeInDown entering animations are safe here.
-
-  const listHeader = (
-    <View style={styles.listHeader}>
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <Animated.View
-        entering={FadeInDown.delay(0).duration(400)}
-        style={styles.header}
-      >
-        <View>
-          <Text style={styles.greeting}>Vault</Text>
-          <Text style={styles.subGreeting}>Your encrypted storage</Text>
-        </View>
-        <View style={styles.headerActions}>
-          {/* Decoy setup — only visible on real vault before a decoy exists */}
-          {vaultContext === "real" && !hasDecoy && (
-            <Pressable
-              onPress={openDecoySetup}
-              style={styles.headerBtn}
-              accessibilityRole="button"
-              accessibilityLabel="More options"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.headerBtnIcon}>⋯</Text>
-            </Pressable>
-          )}
-          <Pressable
-            onPress={lock}
-            style={styles.lockBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Lock vault"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.lockIcon}>⎋</Text>
-          </Pressable>
-        </View>
-      </Animated.View>
-
-      {/* ── Stats ──────────────────────────────────────────────────────── */}
-      <Animated.View
-        entering={FadeInDown.delay(80).duration(400)}
-        style={styles.statsRow}
-      >
-        <StatCard
-          value={visibleFiles.length}
-          label="Encrypted"
-          style={styles.statFlex}
-        />
-        <StatCard
-          value={formatFileSize(totalSize)}
-          label="Total size"
-          style={styles.statFlex}
-        />
-      </Animated.View>
-
-      {/* ── Actions ─────────────────────────────────────────────────────── */}
-      <Animated.View
-        entering={FadeInDown.delay(160).duration(400)}
-        style={styles.actionsCol}
-      >
-        <ActionCard
-          icon="🔒"
-          title="Encrypt Images"
-          description="Select photos from your library to lock in the vault"
-          onPress={handleEncrypt}
-        />
-        <ActionCard
-          icon="📷"
-          title="Secure Camera"
-          description="Capture a photo and encrypt it immediately"
-          onPress={handleSecureCamera}
-        />
-      </Animated.View>
-
-      {/* ── Album filter ─────────────────────────────────────────────────── */}
-      <AlbumFilterBar
-        albums={albums}
-        selected={selectedAlbum}
-        onSelect={(album) => {
-          setSelectedAlbum(album);
-          setShowFavorites(false);
-        }}
-        onCreatePress={openCreateSheet}
-        showFavorites={showFavorites}
-        onFavoritesPress={handleFavoritesChip}
-      />
-
-      {/* ── Section header ───────────────────────────────────────────────── */}
-      <Animated.View entering={FadeInDown.delay(240).duration(400)}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Vault Contents</Text>
-          {visibleFiles.length > 0 && (
-            <Text style={styles.sectionCount}>{visibleFiles.length}</Text>
-          )}
-          {typeof selectedAlbum === "string" && (
-            <>
-              <Pressable
-                onPress={() => openRenameSheet(selectedAlbum)}
-                style={styles.sectionBtn}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Rename album"
-              >
-                <Text style={styles.sectionBtnText}>Rename</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => openDeleteSheet(selectedAlbum)}
-                style={[styles.sectionBtn, styles.sectionBtnDestructive]}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Delete album"
-              >
-                <Text
-                  style={[
-                    styles.sectionBtnText,
-                    styles.sectionBtnTextDestructive,
-                  ]}
-                >
-                  Delete
-                </Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      </Animated.View>
-    </View>
+  const totalSize = useMemo(
+    () => visibleFiles.reduce((sum, f) => sum + f.size, 0),
+    [visibleFiles],
   );
+
+  // ─── Stable renderItem ────────────────────────────────────────────────────
+  // Defined as useCallback, not an inline arrow in JSX. Inline arrows
+  // recreate onPress/onDelete/etc. closures every render, defeating
+  // VaultFileCard's memo on every single row regardless of what changed.
+  // Handlers below are stable refs; VaultFileCard takes `file` + `isSelected`
+  // and resolves them internally, so memo correctly skips unrelated rows.
+
+  const renderVaultFileCard = useCallback(
+    ({ item }: { item: VaultFile }) => (
+      <VaultFileCard
+        file={item}
+        isSelected={selectedUris.has(item.uri)}
+        selectionMode={selectionMode}
+        onPress={handleDecrypt}
+        onLongPress={handleEnterSelection}
+        onToggleSelect={handleToggleSelection}
+        onDelete={handleDelete}
+        onToggleFavorite={handleToggleFavorite}
+        onOpenMoveSheet={handleMoveFile}
+        albums={albums}
+      />
+    ),
+    [
+      selectedUris,
+      selectionMode,
+      handleDecrypt,
+      handleEnterSelection,
+      handleToggleSelection,
+      handleDelete,
+      handleToggleFavorite,
+      handleMoveFile,
+      albums,
+    ],
+  );
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.root}>
       <FlashList
         data={visibleFiles}
+        extraData={`${selectionMode}-${selectedUris.size}`}
         keyExtractor={(item) => item.uri}
         estimatedItemSize={80}
-        renderItem={({ item }) => (
-          <VaultFileCard
-            file={item}
-            onPress={() => handleDecrypt(item)}
-            onDelete={() => handleDelete(item)}
-            onToggleFavorite={() => handleToggleFavorite(item)}
-            onOpenMoveSheet={() => handleMoveFile(item)}
+        renderItem={renderVaultFileCard}
+        // KEY FIX: ListHeaderComponent receives a component (ListHeader),
+        // not a pre-rendered JSX variable. A JSX variable creates a new
+        // object on every HomeScreen render, causing FlashList to remount
+        // the header, re-fire all FadeInDown entering animations, and
+        // trigger a full layout pass that disrupts Modal presentation on Android.
+        ListHeaderComponent={
+          <ListHeader
+            visibleFiles={visibleFiles}
+            totalSize={totalSize}
+            vaultContext={vaultContext}
+            hasDecoy={hasDecoy}
             albums={albums}
+            selectedAlbum={selectedAlbum}
+            showFavorites={showFavorites}
+            onDecoySetup={openDecoySetup}
+            onLock={lock}
+            onEncrypt={handleEncrypt}
+            onSecureCamera={handleSecureCamera}
+            onSelectAlbum={handleSelectAlbum}
+            onCreateAlbum={openCreateSheet}
+            onFavoritesPress={handleFavoritesChip}
+            onRenameAlbum={openRenameSheet}
+            onDeleteAlbum={openDeleteSheet}
           />
-        )}
-        ListHeaderComponent={listHeader}
+        }
         ListEmptyComponent={<EmptyVault />}
         ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
         contentContainerStyle={styles.flashContent}
@@ -552,6 +785,19 @@ export default function HomeScreen() {
           />
         }
       />
+
+      {/* ── Selection action bar ──────────────────────────────────────────── */}
+      {selectionMode && (
+        <SelectionActionBar
+          count={selectedUris.size}
+          allSelected={allVisibleSelected}
+          onCancel={handleCancelSelection}
+          onSelectAll={handleSelectAll}
+          onDelete={handleBatchDelete}
+          onFavorite={handleBatchFavorite}
+          onMove={openBatchMoveSheet}
+        />
+      )}
 
       {/* ── Image preview ──────────────────────────────────────────────────── */}
       <ImageViewer
@@ -605,13 +851,17 @@ export default function HomeScreen() {
         onCancel={() => setDecoySheetVisible(false)}
       />
 
-      {/* ── Move file sheet ────────────────────────────────────────────────── */}
+      {/* ── Move file sheet — handles both single-file and batch move ───────── */}
       <MoveFileSheet
         visible={moveSheetVisible}
-        fileName={moveSheetFile?.name.replace(".vault", "") ?? ""}
-        currentAlbum={moveSheetFile?.album ?? null}
+        fileName={
+          moveSheetFile
+            ? moveSheetFile.name.replace(".vault", "")
+            : `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"}`
+        }
+        currentAlbum={moveSheetFile ? moveSheetFile.album : batchCurrentAlbum}
         albums={albums}
-        onSelect={handleMoveSelect}
+        onSelect={moveSheetFile ? handleMoveSelect : handleBatchMoveSelect}
         onCancel={() => {
           setMoveSheetVisible(false);
           setMoveSheetFile(null);
@@ -625,19 +875,24 @@ export default function HomeScreen() {
 
 interface VaultFileCardProps {
   file: VaultFile;
-  // index removed — was used only for FadeInDown stagger delay, which
-  // re-fires on every FlashList view recycle and breaks mid-scroll visibility
-  onPress: () => void;
-  onDelete: () => void;
-  onToggleFavorite: () => void;
-  /** Opens the MoveFileSheet for this file. */
-  onOpenMoveSheet: () => void;
+  isSelected: boolean;
+  selectionMode: boolean;
+  onPress: (file: VaultFile) => void;
+  onLongPress: (uri: string) => void;
+  onToggleSelect: (uri: string) => void;
+  onDelete: (file: VaultFile) => void;
+  onToggleFavorite: (file: VaultFile) => void;
+  onOpenMoveSheet: (file: VaultFile) => void;
   albums: string[];
 }
 
 const VaultFileCard = memo(function VaultFileCard({
   file,
+  isSelected,
+  selectionMode,
   onPress,
+  onLongPress,
+  onToggleSelect,
   onDelete,
   onToggleFavorite,
   onOpenMoveSheet,
@@ -650,11 +905,9 @@ const VaultFileCard = memo(function VaultFileCard({
   const cardAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
-
   const deleteAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: deleteScale.value }],
   }));
-
   const starAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: starScale.value }],
   }));
@@ -672,38 +925,54 @@ const VaultFileCard = memo(function VaultFileCard({
       withTiming(0.85, { duration: 80 }),
       withTiming(1, { duration: 80 }),
     );
-    setTimeout(onDelete, 100);
-  }, [onDelete]);
+    setTimeout(() => onDelete(file), 100);
+  }, [onDelete, file]);
 
   const handleStarPress = useCallback(() => {
     starScale.value = withSequence(
       withSpring(1.3, { damping: 12, stiffness: 300 }),
       withSpring(1, { damping: 15, stiffness: 300 }),
     );
-    onToggleFavorite();
-  }, [onToggleFavorite]);
+    onToggleFavorite(file);
+  }, [onToggleFavorite, file]);
 
-  // Show the move button only when there is something to move to
+  const handleCardPress = useCallback(() => {
+    if (selectionMode) {
+      onToggleSelect(file.uri);
+    } else {
+      onPress(file);
+    }
+  }, [selectionMode, onToggleSelect, onPress, file]);
+
+  const handleCardLongPress = useCallback(() => {
+    if (!selectionMode) onLongPress(file.uri);
+  }, [selectionMode, onLongPress, file.uri]);
+
   const hasMoveOptions = albums.length > 0 || file.album !== null;
 
   return (
-    // No entering= prop: Reanimated entering animations re-fire on FlashList
-    // view recycling. With index-based stagger, recycled items would be
-    // invisible for seconds when scrolled back into view.
     <Animated.View style={cardAnimStyle}>
       <Pressable
-        onPress={onPress}
+        onPress={handleCardPress}
+        onLongPress={handleCardLongPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         accessibilityRole="button"
         accessibilityLabel={`Decrypt and preview ${file.name.replace(".vault", "")}`}
       >
-        <View style={styles.fileCard}>
-          {/* Left: icon + meta */}
+        <View style={[styles.fileCard, isSelected && styles.fileCardSelected]}>
           <View style={styles.fileLeft}>
-            <View style={styles.fileIconWrap}>
-              <Text style={styles.fileIconText}>⬡</Text>
-            </View>
+            {selectionMode ? (
+              <View
+                style={[styles.checkbox, isSelected && styles.checkboxSelected]}
+              >
+                {isSelected && <Text style={styles.checkboxMark}>✓</Text>}
+              </View>
+            ) : (
+              <View style={styles.fileIconWrap}>
+                <Text style={styles.fileIconText}>⬡</Text>
+              </View>
+            )}
             <View style={styles.fileMeta}>
               <Text style={styles.fileName} numberOfLines={1}>
                 {file.name.replace(".vault", "")}
@@ -716,54 +985,141 @@ const VaultFileCard = memo(function VaultFileCard({
             </View>
           </View>
 
-          {/* Right: move + star + delete + chevron */}
-          <View style={styles.fileActions}>
-            {hasMoveOptions && (
-              <Pressable
-                onPress={onOpenMoveSheet}
-                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                accessibilityRole="button"
-                accessibilityLabel="Move to album"
-                style={styles.moveBtn}
-              >
-                <Text style={styles.moveBtnIcon}>⋯</Text>
-              </Pressable>
-            )}
-            <Animated.View style={starAnimStyle}>
-              <Pressable
-                onPress={handleStarPress}
-                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  file.isFavorite ? "Remove from favorites" : "Add to favorites"
-                }
-                style={styles.starBtn}
-              >
-                <Text
-                  style={[
-                    styles.starIcon,
-                    file.isFavorite && styles.starIconActive,
-                  ]}
+          {/* Per-file actions hidden during selection mode — these become
+              batch actions in the SelectionActionBar instead. */}
+          {!selectionMode && (
+            <View style={styles.fileActions}>
+              {hasMoveOptions && (
+                <Pressable
+                  onPress={() => onOpenMoveSheet(file)}
+                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Move to album"
+                  style={styles.moveBtn}
                 >
-                  ★
-                </Text>
-              </Pressable>
-            </Animated.View>
-            <Animated.View style={deleteAnimStyle}>
-              <Pressable
-                onPress={handleDeletePress}
-                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
-                style={styles.deleteBtn}
-              >
-                <Text style={styles.deleteIcon}>✕</Text>
-              </Pressable>
-            </Animated.View>
-            <Text style={styles.chevron}>›</Text>
-          </View>
+                  <Text style={styles.moveBtnIcon}>⋯</Text>
+                </Pressable>
+              )}
+              <Animated.View style={starAnimStyle}>
+                <Pressable
+                  onPress={handleStarPress}
+                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    file.isFavorite
+                      ? "Remove from favorites"
+                      : "Add to favorites"
+                  }
+                  style={styles.starBtn}
+                >
+                  <Text
+                    style={[
+                      styles.starIcon,
+                      file.isFavorite && styles.starIconActive,
+                    ]}
+                  >
+                    ★
+                  </Text>
+                </Pressable>
+              </Animated.View>
+              <Animated.View style={deleteAnimStyle}>
+                <Pressable
+                  onPress={handleDeletePress}
+                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
+                  style={styles.deleteBtn}
+                >
+                  <Text style={styles.deleteIcon}>✕</Text>
+                </Pressable>
+              </Animated.View>
+              <Text style={styles.chevron}>›</Text>
+            </View>
+          )}
         </View>
       </Pressable>
+    </Animated.View>
+  );
+});
+
+// ─── SelectionActionBar ─────────────────────────────────────────────────────
+
+interface SelectionActionBarProps {
+  count: number;
+  allSelected: boolean;
+  onCancel: () => void;
+  onSelectAll: () => void;
+  onDelete: () => void;
+  onFavorite: () => void;
+  onMove: () => void;
+}
+
+const SelectionActionBar = memo(function SelectionActionBar({
+  count,
+  allSelected,
+  onCancel,
+  onSelectAll,
+  onDelete,
+  onFavorite,
+  onMove,
+}: SelectionActionBarProps) {
+  return (
+    <Animated.View entering={FadeIn.duration(150)} style={styles.selectionBar}>
+      <Pressable
+        onPress={onCancel}
+        style={styles.selectionCancelBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Cancel selection"
+      >
+        <Text style={styles.selectionCancelText}>✕</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={onSelectAll}
+        style={styles.selectAllBtn}
+        accessibilityRole="button"
+        accessibilityLabel={
+          allSelected ? "Clear selection" : "Select all visible files"
+        }
+      >
+        <Text style={styles.selectAllText} numberOfLines={1}>
+          {allSelected ? "Clear" : "All"}
+        </Text>
+      </Pressable>
+
+      <Text style={styles.selectionCount} numberOfLines={1}>
+        {count} selected
+      </Text>
+
+      <View style={styles.selectionActions}>
+        <Pressable
+          onPress={onFavorite}
+          style={styles.selectionActionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle favorite for selected files"
+        >
+          <Text style={styles.selectionActionIcon}>★</Text>
+        </Pressable>
+        <Pressable
+          onPress={onMove}
+          style={styles.selectionActionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Move selected files"
+        >
+          <Text style={styles.selectionActionIcon}>⋯</Text>
+        </Pressable>
+        <Pressable
+          onPress={onDelete}
+          style={[
+            styles.selectionActionBtn,
+            styles.selectionActionBtnDestructive,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Delete selected files"
+        >
+          <Text style={styles.selectionActionIconDestructive}>✕</Text>
+        </Pressable>
+      </View>
     </Animated.View>
   );
 });
@@ -847,31 +1203,21 @@ function formatRelativeTime(ts: number): string {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Layout
-  root: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  } as ViewStyle,
+  root: { flex: 1, backgroundColor: Colors.background } as ViewStyle,
 
-  // FlashList container padding — horizontal insets apply to header and items
   flashContent: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing["3xl"],
   } as ViewStyle,
 
-  // ListHeaderComponent wrapper — vertical spacing and section gaps
   listHeader: {
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
     gap: Spacing.lg,
   } as ViewStyle,
 
-  // Separator between file cards — replaces the gap on the old fileList View
-  itemSeparator: {
-    height: Spacing.sm,
-  } as ViewStyle,
+  itemSeparator: { height: Spacing.sm } as ViewStyle,
 
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -900,10 +1246,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
-  lockIcon: {
-    fontSize: 18,
-    color: Colors.textSecondary,
-  } as TextStyle,
+  lockIcon: { fontSize: 18, color: Colors.textSecondary } as TextStyle,
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -925,21 +1268,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   } as TextStyle,
 
-  // Stats
-  statsRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  } as ViewStyle,
-  statFlex: {
-    flex: 1,
-  } as ViewStyle,
+  statsRow: { flexDirection: "row", gap: Spacing.md } as ViewStyle,
+  statFlex: { flex: 1 } as ViewStyle,
 
-  // Action cards column
-  actionsCol: {
-    gap: Spacing.md,
-  } as ViewStyle,
-
-  // Action card
+  actionsCol: { gap: Spacing.md } as ViewStyle,
   actionCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -950,14 +1282,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.md,
   } as ViewStyle,
-  actionIcon: {
-    fontSize: 26,
-    width: 40,
-    textAlign: "center",
-  } as TextStyle,
-  actionText: {
-    flex: 1,
-  } as ViewStyle,
+  actionIcon: { fontSize: 26, width: 40, textAlign: "center" } as TextStyle,
+  actionText: { flex: 1 } as ViewStyle,
   actionTitle: {
     fontSize: Typography.md,
     fontWeight: Typography.semibold,
@@ -969,12 +1295,8 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: 18,
   } as TextStyle,
-  actionChevron: {
-    fontSize: 24,
-    color: Colors.textMuted,
-  } as TextStyle,
+  actionChevron: { fontSize: 24, color: Colors.textMuted } as TextStyle,
 
-  // Section header row
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1008,20 +1330,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   } as ViewStyle,
-  sectionBtnDestructive: {
-    borderColor: Colors.gray,
-  } as ViewStyle,
+  sectionBtnDestructive: { borderColor: Colors.gray } as ViewStyle,
   sectionBtnText: {
     fontSize: Typography.xs,
     color: Colors.textSecondary,
     fontWeight: Typography.medium,
     letterSpacing: Typography.wide,
   } as TextStyle,
-  sectionBtnTextDestructive: {
-    color: Colors.lightGray,
-  } as TextStyle,
+  sectionBtnTextDestructive: { color: Colors.lightGray } as TextStyle,
 
-  // File card
   fileCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
@@ -1032,12 +1349,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   } as ViewStyle,
+  fileCardSelected: {
+    borderColor: Colors.silver,
+    backgroundColor: Colors.midDark,
+  } as ViewStyle,
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.full,
+    borderWidth: 2,
+    borderColor: Colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  } as ViewStyle,
+  checkboxSelected: {
+    backgroundColor: Colors.silver,
+    borderColor: Colors.silver,
+  } as ViewStyle,
+  checkboxMark: {
+    fontSize: 13,
+    fontWeight: Typography.bold,
+    color: Colors.black,
+  } as TextStyle,
   fileLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
     gap: Spacing.md,
-    minWidth: 0, // allows text truncation
+    minWidth: 0,
   } as ViewStyle,
   fileIconWrap: {
     width: 40,
@@ -1050,14 +1390,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   } as ViewStyle,
-  fileIconText: {
-    fontSize: 18,
-    color: Colors.textMuted,
-  } as TextStyle,
-  fileMeta: {
-    flex: 1,
-    minWidth: 0,
-  } as ViewStyle,
+  fileIconText: { fontSize: 18, color: Colors.textMuted } as TextStyle,
+  fileMeta: { flex: 1, minWidth: 0 } as ViewStyle,
   fileName: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
@@ -1113,19 +1447,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
-  starIcon: {
-    fontSize: 16,
-    color: Colors.textMuted,
-  } as TextStyle,
-  starIconActive: {
-    color: Colors.silver,
-  } as TextStyle,
-  chevron: {
-    fontSize: 22,
-    color: Colors.textMuted,
-  } as TextStyle,
+  starIcon: { fontSize: 16, color: Colors.textMuted } as TextStyle,
+  starIconActive: { color: Colors.silver } as TextStyle,
+  chevron: { fontSize: 22, color: Colors.textMuted } as TextStyle,
 
-  // Empty state
   emptyCard: {
     alignItems: "center",
     paddingVertical: Spacing["2xl"],
@@ -1149,7 +1474,6 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   } as TextStyle,
 
-  // Decrypt overlay
   decryptOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.88)",
@@ -1178,5 +1502,85 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     maxWidth: 200,
     textAlign: "center",
+  } as TextStyle,
+
+  // Selection action bar
+  selectionBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    flexWrap: "nowrap", // explicit — never allow row children to wrap to a second line
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: Spacing.md, // reduced from Spacing.lg to reclaim ~16px total
+    paddingVertical: Spacing.sm, // reduced from Spacing.md
+    paddingBottom: Spacing.md, // reduced from Spacing.lg
+    gap: Spacing.xs, // reduced from Spacing.md — tighter on narrow screens
+  } as ViewStyle,
+  selectionCancelBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.midDark,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  selectionCancelText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: Typography.bold,
+  } as TextStyle,
+  selectAllBtn: {
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 6,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.midDark,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    flexShrink: 0,
+  } as ViewStyle,
+  selectAllText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.medium,
+    color: Colors.silver,
+    letterSpacing: Typography.wide,
+  } as TextStyle,
+  selectionCount: {
+    flex: 1,
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.text,
+    minWidth: 0, // allows the flex item to actually shrink below content size
+  } as TextStyle,
+  selectionActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  } as ViewStyle,
+  selectionActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.md, // was 40×40
+    backgroundColor: Colors.midDark,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  } as ViewStyle,
+  selectionActionBtnDestructive: {
+    borderColor: Colors.gray,
+  } as ViewStyle,
+  selectionActionIcon: {
+    fontSize: 17,
+    color: Colors.silver,
+  } as TextStyle,
+  selectionActionIconDestructive: {
+    fontSize: 15,
+    color: Colors.lightGray,
+    fontWeight: Typography.bold,
   } as TextStyle,
 });
