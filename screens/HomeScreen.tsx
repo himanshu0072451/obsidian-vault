@@ -12,6 +12,7 @@ import {
   StyleSheet,
   SafeAreaView,
   Pressable,
+  ScrollView,
   ViewStyle,
   TextStyle,
   ActivityIndicator,
@@ -42,6 +43,7 @@ import { AlbumActionSheet } from "../components/AlbumActionSheet";
 import type { AlbumActionSheetMode } from "../components/AlbumActionSheet";
 import { DecoySetupSheet } from "../components/DecoySetupSheet";
 import { MoveFileSheet } from "../components/MoveFileSheet";
+import { TagSheet } from "../components/TagSheet";
 import { useAlbums } from "../hooks/useAlbums";
 
 // ─── ListHeader props ─────────────────────────────────────────────────────────
@@ -58,6 +60,8 @@ interface ListHeaderProps {
   albums: string[];
   selectedAlbum: string | null | undefined;
   showFavorites: boolean;
+  allTags: string[];
+  selectedTags: Set<string>;
   onDecoySetup: () => void;
   onLock: () => void;
   onEncrypt: () => void;
@@ -67,6 +71,7 @@ interface ListHeaderProps {
   onFavoritesPress: () => void;
   onRenameAlbum: (name: string) => void;
   onDeleteAlbum: (name: string) => void;
+  onTagChipPress: (tag: string) => void;
 }
 
 const ListHeader = memo(function ListHeader({
@@ -77,6 +82,8 @@ const ListHeader = memo(function ListHeader({
   albums,
   selectedAlbum,
   showFavorites,
+  allTags,
+  selectedTags,
   onDecoySetup,
   onLock,
   onEncrypt,
@@ -86,6 +93,7 @@ const ListHeader = memo(function ListHeader({
   onFavoritesPress,
   onRenameAlbum,
   onDeleteAlbum,
+  onTagChipPress,
 }: ListHeaderProps) {
   return (
     <View style={styles.listHeader}>
@@ -167,6 +175,37 @@ const ListHeader = memo(function ListHeader({
         showFavorites={showFavorites}
         onFavoritesPress={onFavoritesPress}
       />
+
+      {/* ── Tag filter — V1: OR across selected tags ─────────────────────── */}
+      {allTags.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tagFilterRow}
+        >
+          {allTags.map((tag) => {
+            const active = selectedTags.has(tag);
+            return (
+              <Pressable
+                key={tag}
+                onPress={() => onTagChipPress(tag)}
+                style={[styles.tagChip, active && styles.tagChipActive]}
+                accessibilityRole="button"
+                accessibilityLabel={`Filter by tag ${tag}`}
+              >
+                <Text
+                  style={[
+                    styles.tagChipText,
+                    active && styles.tagChipTextActive,
+                  ]}
+                >
+                  #{tag}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* ── Section header ───────────────────────────────────────────────── */}
       <Animated.View entering={FadeInDown.delay(240).duration(400)}>
@@ -258,13 +297,32 @@ export default function HomeScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedUris, setSelectedUris] = useState<Set<string>>(new Set());
 
+  // Tags — V1: OR filter across selected tags, no AND mode, no global rename/delete
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [tagSheetVisible, setTagSheetVisible] = useState(false);
+  const [tagSheetFile, setTagSheetFile] = useState<VaultFile | null>(null);
+
   // ─── Derived visible list ─────────────────────────────────────────────────
 
   const visibleFiles = useMemo(() => {
-    if (showFavorites) return allFiles.filter((f) => f.isFavorite);
-    if (selectedAlbum === undefined) return allFiles;
-    return allFiles.filter((f) => f.album === (selectedAlbum ?? null));
-  }, [allFiles, showFavorites, selectedAlbum]);
+    let result = allFiles;
+    if (showFavorites) result = result.filter((f) => f.isFavorite);
+    if (selectedAlbum !== undefined) {
+      result = result.filter((f) => f.album === (selectedAlbum ?? null));
+    }
+    if (selectedTags.size > 0) {
+      result = result.filter((f) => f.tags.some((t) => selectedTags.has(t)));
+    }
+    return result;
+  }, [allFiles, showFavorites, selectedAlbum, selectedTags]);
+
+  const allTags = useMemo(() => {
+    const distinct = new Set<string>();
+    for (const file of allFiles) {
+      for (const tag of file.tags) distinct.add(tag);
+    }
+    return [...distinct].sort((a, b) => a.localeCompare(b));
+  }, [allFiles]);
 
   // ─── Data loading ─────────────────────────────────────────────────────────
 
@@ -487,6 +545,75 @@ export default function HomeScreen() {
     [moveSheetFile, moveFile],
   );
 
+  // ─── Tags ─────────────────────────────────────────────────────────────────
+
+  const handleOpenTagSheet = useCallback((file: VaultFile) => {
+    setTagSheetFile(file);
+    setTagSheetVisible(true);
+  }, []);
+
+  const openBatchTagSheet = useCallback(() => {
+    setTagSheetFile(null);
+    setTagSheetVisible(true);
+  }, []);
+
+  const handleAddTag = useCallback(
+    async (tag: string) => {
+      if (tagSheetFile) {
+        const file = tagSheetFile;
+        await vault.addTag(file.uri, tag);
+        const updated = await vault.getVaultFiles();
+        const fresh = updated.find((f) => f.uri === file.uri);
+        if (fresh) {
+          setAllFiles((prev) =>
+            prev.map((f) => (f.uri === file.uri ? fresh : f)),
+          );
+          setTagSheetFile(fresh);
+        }
+      } else {
+        for (const uri of selectedUris) {
+          await vault.addTag(uri, tag);
+        }
+        await loadFiles();
+      }
+    },
+    [tagSheetFile, selectedUris, vault, loadFiles],
+  );
+
+  const handleRemoveTag = useCallback(
+    async (tag: string) => {
+      if (!tagSheetFile) return;
+      const file = tagSheetFile;
+      await vault.removeTag(file.uri, tag);
+      const updatedTags = file.tags.filter((t) => t !== tag);
+      const fresh = { ...file, tags: updatedTags };
+      setAllFiles((prev) => prev.map((f) => (f.uri === file.uri ? fresh : f)));
+      setTagSheetFile(fresh);
+    },
+    [tagSheetFile, vault],
+  );
+
+  const handleTagSheetDone = useCallback(() => {
+    setTagSheetVisible(false);
+    setTagSheetFile(null);
+    if (!tagSheetFile) {
+      setSelectionMode(false);
+      setSelectedUris(new Set());
+    }
+  }, [tagSheetFile]);
+
+  const handleTagChipPress = useCallback((tag: string) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) {
+        next.delete(tag);
+      } else {
+        next.add(tag);
+      }
+      return next;
+    });
+  }, []);
+
   // ─── Multi-select ─────────────────────────────────────────────────────────
 
   // Clear selection whenever the visible filter changes — acting on
@@ -494,7 +621,7 @@ export default function HomeScreen() {
   useEffect(() => {
     setSelectionMode(false);
     setSelectedUris(new Set());
-  }, [selectedAlbum, showFavorites]);
+  }, [selectedAlbum, showFavorites, selectedTags]);
 
   const handleEnterSelection = useCallback((uri: string) => {
     setSelectionMode(true);
@@ -721,6 +848,7 @@ export default function HomeScreen() {
         onDelete={handleDelete}
         onToggleFavorite={handleToggleFavorite}
         onOpenMoveSheet={handleMoveFile}
+        onOpenTagSheet={handleOpenTagSheet}
         albums={albums}
       />
     ),
@@ -733,6 +861,7 @@ export default function HomeScreen() {
       handleDelete,
       handleToggleFavorite,
       handleMoveFile,
+      handleOpenTagSheet,
       albums,
     ],
   );
@@ -743,10 +872,10 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.root}>
       <FlashList
         data={visibleFiles}
-        extraData={`${selectionMode}-${selectedUris.size}`}
         keyExtractor={(item) => item.uri}
         estimatedItemSize={80}
         renderItem={renderVaultFileCard}
+        extraData={`${selectionMode}-${selectedUris.size}`}
         // KEY FIX: ListHeaderComponent receives a component (ListHeader),
         // not a pre-rendered JSX variable. A JSX variable creates a new
         // object on every HomeScreen render, causing FlashList to remount
@@ -761,6 +890,8 @@ export default function HomeScreen() {
             albums={albums}
             selectedAlbum={selectedAlbum}
             showFavorites={showFavorites}
+            allTags={allTags}
+            selectedTags={selectedTags}
             onDecoySetup={openDecoySetup}
             onLock={lock}
             onEncrypt={handleEncrypt}
@@ -770,6 +901,7 @@ export default function HomeScreen() {
             onFavoritesPress={handleFavoritesChip}
             onRenameAlbum={openRenameSheet}
             onDeleteAlbum={openDeleteSheet}
+            onTagChipPress={handleTagChipPress}
           />
         }
         ListEmptyComponent={<EmptyVault />}
@@ -796,6 +928,7 @@ export default function HomeScreen() {
           onDelete={handleBatchDelete}
           onFavorite={handleBatchFavorite}
           onMove={openBatchMoveSheet}
+          onTag={openBatchTagSheet}
         />
       )}
 
@@ -867,6 +1000,20 @@ export default function HomeScreen() {
           setMoveSheetFile(null);
         }}
       />
+
+      <TagSheet
+        visible={tagSheetVisible}
+        targetLabel={
+          tagSheetFile
+            ? tagSheetFile.name.replace(".vault", "")
+            : `${selectedUris.size} file${selectedUris.size === 1 ? "" : "s"}`
+        }
+        currentTags={tagSheetFile?.tags ?? []}
+        existingTags={allTags}
+        onAddTag={handleAddTag}
+        onRemoveTag={tagSheetFile ? handleRemoveTag : undefined}
+        onDone={handleTagSheetDone}
+      />
     </SafeAreaView>
   );
 }
@@ -883,6 +1030,7 @@ interface VaultFileCardProps {
   onDelete: (file: VaultFile) => void;
   onToggleFavorite: (file: VaultFile) => void;
   onOpenMoveSheet: (file: VaultFile) => void;
+  onOpenTagSheet: (file: VaultFile) => void;
   albums: string[];
 }
 
@@ -896,6 +1044,7 @@ const VaultFileCard = memo(function VaultFileCard({
   onDelete,
   onToggleFavorite,
   onOpenMoveSheet,
+  onOpenTagSheet,
   albums,
 }: VaultFileCardProps) {
   const scale = useSharedValue(1);
@@ -982,6 +1131,24 @@ const VaultFileCard = memo(function VaultFileCard({
                 {"  ·  "}
                 {formatRelativeTime(file.createdAt * 1000)}
               </Text>
+              {file.tags.length > 0 && (
+                <View style={styles.fileTagRow}>
+                  {file.tags.slice(0, 3).map((tag) => (
+                    <View key={tag} style={styles.fileTagChip}>
+                      <Text style={styles.fileTagChipText} numberOfLines={1}>
+                        #{tag}
+                      </Text>
+                    </View>
+                  ))}
+                  {file.tags.length > 3 && (
+                    <View style={styles.fileTagChip}>
+                      <Text style={styles.fileTagChipText}>
+                        +{file.tags.length - 3}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           </View>
 
@@ -989,6 +1156,25 @@ const VaultFileCard = memo(function VaultFileCard({
               batch actions in the SelectionActionBar instead. */}
           {!selectionMode && (
             <View style={styles.fileActions}>
+              <Pressable
+                onPress={() => onOpenTagSheet(file)}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel="Add tags"
+                style={[
+                  styles.tagBtn,
+                  file.tags.length > 0 && styles.tagBtnActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tagBtnIcon,
+                    file.tags.length > 0 && styles.tagBtnIconActive,
+                  ]}
+                >
+                  #
+                </Text>
+              </Pressable>
               {hasMoveOptions && (
                 <Pressable
                   onPress={() => onOpenMoveSheet(file)}
@@ -1052,6 +1238,7 @@ interface SelectionActionBarProps {
   onDelete: () => void;
   onFavorite: () => void;
   onMove: () => void;
+  onTag: () => void;
 }
 
 const SelectionActionBar = memo(function SelectionActionBar({
@@ -1062,6 +1249,7 @@ const SelectionActionBar = memo(function SelectionActionBar({
   onDelete,
   onFavorite,
   onMove,
+  onTag,
 }: SelectionActionBarProps) {
   return (
     <Animated.View entering={FadeIn.duration(150)} style={styles.selectionBar}>
@@ -1082,7 +1270,7 @@ const SelectionActionBar = memo(function SelectionActionBar({
           allSelected ? "Clear selection" : "Select all visible files"
         }
       >
-        <Text style={styles.selectAllText} numberOfLines={1}>
+        <Text style={styles.selectAllText}>
           {allSelected ? "Clear" : "All"}
         </Text>
       </Pressable>
@@ -1092,6 +1280,14 @@ const SelectionActionBar = memo(function SelectionActionBar({
       </Text>
 
       <View style={styles.selectionActions}>
+        <Pressable
+          onPress={onTag}
+          style={styles.selectionActionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Add tags to selected files"
+        >
+          <Text style={styles.selectionActionIcon}>#</Text>
+        </Pressable>
         <Pressable
           onPress={onFavorite}
           style={styles.selectionActionBtn}
@@ -1297,6 +1493,32 @@ const styles = StyleSheet.create({
   } as TextStyle,
   actionChevron: { fontSize: 24, color: Colors.textMuted } as TextStyle,
 
+  tagFilterRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingVertical: 2,
+  } as ViewStyle,
+  tagChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  } as ViewStyle,
+  tagChipActive: {
+    backgroundColor: Colors.midDark,
+    borderColor: Colors.silver,
+  } as ViewStyle,
+  tagChipText: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+  } as TextStyle,
+  tagChipTextActive: {
+    color: Colors.silver,
+    fontWeight: Typography.semibold,
+  } as TextStyle,
+
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1402,6 +1624,25 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 3,
   } as TextStyle,
+  fileTagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 5,
+  } as ViewStyle,
+  fileTagChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.midDark,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    maxWidth: 100,
+  } as ViewStyle,
+  fileTagChipText: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  } as TextStyle,
   fileActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -1440,6 +1681,25 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     lineHeight: 14,
   } as TextStyle,
+  tagBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.midDark,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  tagBtnActive: {
+    borderColor: Colors.silver,
+  } as ViewStyle,
+  tagBtnIcon: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    fontWeight: Typography.bold,
+  } as TextStyle,
+  tagBtnIconActive: { color: Colors.silver } as TextStyle,
   starBtn: {
     width: 30,
     height: 30,
@@ -1511,15 +1771,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: "row",
-    flexWrap: "nowrap", // explicit — never allow row children to wrap to a second line
+    flexWrap: "nowrap",
     alignItems: "center",
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingHorizontal: Spacing.md, // reduced from Spacing.lg to reclaim ~16px total
-    paddingVertical: Spacing.sm, // reduced from Spacing.md
-    paddingBottom: Spacing.md, // reduced from Spacing.lg
-    gap: Spacing.xs, // reduced from Spacing.md — tighter on narrow screens
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingBottom: Spacing.md,
+    gap: Spacing.xs,
   } as ViewStyle,
   selectionCancelBtn: {
     width: 32,
@@ -1528,6 +1788,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.midDark,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   } as ViewStyle,
   selectionCancelText: {
     fontSize: 14,
@@ -1551,19 +1812,20 @@ const styles = StyleSheet.create({
   } as TextStyle,
   selectionCount: {
     flex: 1,
-    fontSize: Typography.base,
+    minWidth: 0,
+    fontSize: Typography.sm,
     fontWeight: Typography.semibold,
     color: Colors.text,
-    minWidth: 0, // allows the flex item to actually shrink below content size
   } as TextStyle,
   selectionActions: {
     flexDirection: "row",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    flexShrink: 0,
   } as ViewStyle,
   selectionActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.md, // was 40×40
+    width: 34,
+    height: 34,
+    borderRadius: Radius.md,
     backgroundColor: Colors.midDark,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -1575,11 +1837,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.gray,
   } as ViewStyle,
   selectionActionIcon: {
-    fontSize: 17,
+    fontSize: 15,
     color: Colors.silver,
   } as TextStyle,
   selectionActionIconDestructive: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.lightGray,
     fontWeight: Typography.bold,
   } as TextStyle,

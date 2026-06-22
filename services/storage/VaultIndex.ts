@@ -33,8 +33,8 @@
  *   fall back to a full filesystem reconciliation scan.
  */
 
-import * as FileSystem from 'expo-file-system';
-import type { VaultContext } from './types';
+import * as FileSystem from "expo-file-system";
+import type { VaultContext } from "./types";
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ import type { VaultContext } from './types';
 const CURRENT_VERSION = 1;
 
 /** Filename written inside the vault root directory. */
-const INDEX_FILENAME = 'vault-index.json';
+const INDEX_FILENAME = "vault-index.json";
 
 /**
  * Metadata for a single encrypted file as stored in the index.
@@ -148,7 +148,9 @@ export function createIndex(): VaultIndexData {
  * Never throws — all error paths return null so callers have a single
  * branch to handle rather than try/catch at every call site.
  */
-export async function loadIndex(context: VaultContext): Promise<VaultIndexData | null> {
+export async function loadIndex(
+  context: VaultContext,
+): Promise<VaultIndexData | null> {
   const path = getIndexPath(context);
 
   try {
@@ -166,10 +168,10 @@ export async function loadIndex(context: VaultContext): Promise<VaultIndexData |
 
     // Structural guard: ensure required fields are present
     if (
-      typeof parsed.lastModified !== 'number' ||
-      typeof parsed.files !== 'object' ||
+      typeof parsed.lastModified !== "number" ||
+      typeof parsed.files !== "object" ||
       !Array.isArray(parsed.favorites) ||
-      typeof parsed.tags !== 'object'
+      typeof parsed.tags !== "object"
     ) {
       return null;
     }
@@ -196,7 +198,7 @@ export async function loadIndex(context: VaultContext): Promise<VaultIndexData |
  */
 export async function saveIndex(
   context: VaultContext,
-  data: VaultIndexData
+  data: VaultIndexData,
 ): Promise<void> {
   const path = getIndexPath(context);
 
@@ -206,11 +208,9 @@ export async function saveIndex(
     lastModified: Date.now(),
   };
 
-  await FileSystem.writeAsStringAsync(
-    path,
-    JSON.stringify(payload),
-    { encoding: FileSystem.EncodingType.UTF8 }
-  );
+  await FileSystem.writeAsStringAsync(path, JSON.stringify(payload), {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
 }
 
 // ─── Incremental helpers ──────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ export async function saveIndex(
  */
 export function indexAddEntry(
   data: VaultIndexData,
-  entry: IndexEntry
+  entry: IndexEntry,
 ): VaultIndexData {
   return {
     ...data,
@@ -242,7 +242,7 @@ export function indexAddEntry(
  */
 export function indexRemoveEntry(
   data: VaultIndexData,
-  name: string
+  name: string,
 ): VaultIndexData {
   const files = { ...data.files };
   delete files[name];
@@ -265,7 +265,7 @@ export function indexRemoveEntry(
 export function indexUpdateEntryAlbum(
   data: VaultIndexData,
   name: string,
-  newAlbum: string | null
+  newAlbum: string | null,
 ): VaultIndexData {
   const existing = data.files[name];
   if (!existing) return data;
@@ -277,4 +277,24 @@ export function indexUpdateEntryAlbum(
       [name]: { ...existing, album: newAlbum },
     },
   };
+}
+
+/**
+ * Replace the tag list for a single file entry.
+ * Tags should already be normalised (Title Case, deduplicated) by the
+ * caller — this function stores exactly what it is given.
+ * Returns the updated index (does not mutate the input).
+ */
+export function indexUpdateTags(
+  data: VaultIndexData,
+  name: string,
+  tags: string[],
+): VaultIndexData {
+  const newTags = { ...data.tags };
+  if (tags.length === 0) {
+    delete newTags[name];
+  } else {
+    newTags[name] = tags;
+  }
+  return { ...data, tags: newTags };
 }

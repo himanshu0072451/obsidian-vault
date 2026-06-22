@@ -19,6 +19,8 @@ export interface VaultFile {
   album: string | null;
   /** Whether the file has been starred in the active vault. */
   isFavorite: boolean;
+  /** Title-Case, deduplicated tags applied to this file. */
+  tags: string[];
 }
 
 /** A single activity log entry. */

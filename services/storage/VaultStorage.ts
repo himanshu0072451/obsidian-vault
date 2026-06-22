@@ -9,16 +9,16 @@
  * Never instantiate this directly outside of index.ts.
  */
 
-import * as SecureStore from 'expo-secure-store';
-import * as FileSystem from 'expo-file-system';
-import { hashPasscode } from './passcode';
+import * as SecureStore from "expo-secure-store";
+import * as FileSystem from "expo-file-system";
+import { hashPasscode } from "./passcode";
 import {
   VaultContext,
   VaultFile,
   ActivityEntry,
   VAULT_EXTENSION,
   THUMB_EXTENSION,
-} from './types';
+} from "./types";
 import {
   VaultIndexData,
   IndexEntry,
@@ -28,7 +28,8 @@ import {
   indexAddEntry,
   indexRemoveEntry,
   indexUpdateEntryAlbum,
-} from './VaultIndex';
+  indexUpdateTags,
+} from "./VaultIndex";
 
 // Maximum activity log entries kept per vault
 const MAX_ACTIVITY = 50;
@@ -51,9 +52,9 @@ export class VaultStorage {
     // All SecureStore keys are prefixed so real/decoy never collide
     const p = `obsidian_${context}`;
     this.keyPasscodeHash = `${p}_passcode_hash`;
-    this.keyActivity     = `${p}_activity`;
-    this.keyFavorites    = `${p}_favorites`;
-    this.keyTags         = `${p}_tags`;
+    this.keyActivity = `${p}_activity`;
+    this.keyFavorites = `${p}_favorites`;
+    this.keyTags = `${p}_tags`;
 
     // Filesystem: <documents>/vault/real/ or <documents>/vault/decoy/
     this.rootDir = `${FileSystem.documentDirectory}vault/${context}/`;
@@ -239,21 +240,26 @@ export class VaultStorage {
    * Fire-and-forget: if this fails the file still exists on disk and the
    * fallback scan will pick it up on next load.
    */
-  async recordEncryptedFile(outPath: string, albumName: string | null): Promise<void> {
+  async recordEncryptedFile(
+    outPath: string,
+    albumName: string | null,
+  ): Promise<void> {
     try {
       const info = await FileSystem.getInfoAsync(outPath);
       if (!info.exists) return; // encrypt must have failed — nothing to record
 
-      const name = outPath.split('/').pop()!;
+      const name = outPath.split("/").pop()!;
       const entry: IndexEntry = {
         name,
         album: albumName,
         size: (info as any).size ?? 0,
-        createdAt: Math.floor(((info as any).modificationTime ?? Date.now() / 1000)),
+        createdAt: Math.floor(
+          (info as any).modificationTime ?? Date.now() / 1000,
+        ),
         hasThumb: false, // thumbnails not implemented yet
       };
 
-      const current = await loadIndex(this.context) ?? createIndex();
+      const current = (await loadIndex(this.context)) ?? createIndex();
       const updated = indexAddEntry(current, entry);
       await saveIndex(this.context, updated);
     } catch {
@@ -269,7 +275,7 @@ export class VaultStorage {
     await FileSystem.deleteAsync(thumbUri, { idempotent: true });
 
     // Update index — fire-and-forget after filesystem delete succeeds
-    this._removeFromIndex(uri.split('/').pop()!);
+    this._removeFromIndex(uri.split("/").pop()!);
   }
 
   /**
@@ -278,7 +284,7 @@ export class VaultStorage {
    */
   async moveFile(uri: string, targetAlbum: string | null): Promise<string> {
     const targetDir = await this.ensureAlbumDir(targetAlbum);
-    const fileName = uri.split('/').pop()!;
+    const fileName = uri.split("/").pop()!;
     const newUri = `${targetDir}${fileName}`;
 
     await FileSystem.moveAsync({ from: uri, to: newUri });
@@ -305,7 +311,7 @@ export class VaultStorage {
     history.unshift(entry);
     await SecureStore.setItemAsync(
       this.keyActivity,
-      JSON.stringify(history.slice(0, MAX_ACTIVITY))
+      JSON.stringify(history.slice(0, MAX_ACTIVITY)),
     );
   }
 
@@ -324,13 +330,19 @@ export class VaultStorage {
   async addFavorite(uri: string): Promise<void> {
     const favs = await this.getFavorites();
     favs.add(uri);
-    await SecureStore.setItemAsync(this.keyFavorites, JSON.stringify([...favs]));
+    await SecureStore.setItemAsync(
+      this.keyFavorites,
+      JSON.stringify([...favs]),
+    );
   }
 
   async removeFavorite(uri: string): Promise<void> {
     const favs = await this.getFavorites();
     favs.delete(uri);
-    await SecureStore.setItemAsync(this.keyFavorites, JSON.stringify([...favs]));
+    await SecureStore.setItemAsync(
+      this.keyFavorites,
+      JSON.stringify([...favs]),
+    );
   }
 
   async isFavorite(uri: string): Promise<boolean> {
@@ -338,47 +350,66 @@ export class VaultStorage {
     return favs.has(uri);
   }
 
-  // ── Tags (persisted as Record<fileUri, string[]>) ────────────────────────
+  // ── Tags (synced through VaultIndex; keyed by filename, not URI) ─────────
 
-  async getTags(): Promise<Record<string, string[]>> {
-    const raw = await SecureStore.getItemAsync(this.keyTags);
-    return raw ? JSON.parse(raw) : {};
+  private _normaliseTag(tag: string): string {
+    const trimmed = tag.trim().replace(/\s+/g, " ");
+    return trimmed
+      .split(" ")
+      .map((word) =>
+        word.length === 0
+          ? word
+          : word[0].toUpperCase() + word.slice(1).toLowerCase(),
+      )
+      .join(" ");
   }
 
-  async setFileTags(uri: string, tags: string[]): Promise<void> {
-    const all = await this.getTags();
-    if (tags.length === 0) {
-      delete all[uri];
-    } else {
-      all[uri] = [...new Set(tags.map((t) => t.trim().toLowerCase()))];
+  async addTags(uri: string, tags: string[]): Promise<void> {
+    const name = uri.split("/").pop()!;
+    const normalisedNew = tags
+      .map((t) => this._normaliseTag(t))
+      .filter((t) => t.length > 0);
+    if (normalisedNew.length === 0) return;
+
+    const current = (await loadIndex(this.context)) ?? createIndex();
+    const existingTags = current.tags[name] ?? [];
+    const merged = [...existingTags];
+    for (const tag of normalisedNew) {
+      if (!merged.includes(tag)) merged.push(tag);
     }
-    await SecureStore.setItemAsync(this.keyTags, JSON.stringify(all));
+
+    const updated = indexUpdateTags(current, name, merged);
+    await saveIndex(this.context, updated);
   }
 
   async addTag(uri: string, tag: string): Promise<void> {
-    const all = await this.getTags();
-    const current = all[uri] ?? [];
-    const normalised = tag.trim().toLowerCase();
-    if (!current.includes(normalised)) {
-      all[uri] = [...current, normalised];
-      await SecureStore.setItemAsync(this.keyTags, JSON.stringify(all));
-    }
+    await this.addTags(uri, [tag]);
   }
 
   async removeTag(uri: string, tag: string): Promise<void> {
-    const all = await this.getTags();
-    const normalised = tag.trim().toLowerCase();
-    all[uri] = (all[uri] ?? []).filter((t) => t !== normalised);
-    if (all[uri].length === 0) delete all[uri];
-    await SecureStore.setItemAsync(this.keyTags, JSON.stringify(all));
+    const name = uri.split("/").pop()!;
+    const normalised = this._normaliseTag(tag);
+
+    const current = await loadIndex(this.context);
+    if (!current) return;
+
+    const existingTags = current.tags[name] ?? [];
+    const filtered = existingTags.filter((t) => t !== normalised);
+    if (filtered.length === existingTags.length) return;
+
+    const updated = indexUpdateTags(current, name, filtered);
+    await saveIndex(this.context, updated);
   }
 
-  async getFilesByTag(tag: string): Promise<string[]> {
-    const all = await this.getTags();
-    const normalised = tag.trim().toLowerCase();
-    return Object.entries(all)
-      .filter(([, tags]) => tags.includes(normalised))
-      .map(([uri]) => uri);
+  async getAllTags(): Promise<string[]> {
+    const index = await loadIndex(this.context);
+    if (!index) return [];
+
+    const distinct = new Set<string>();
+    for (const tags of Object.values(index.tags)) {
+      for (const tag of tags) distinct.add(tag);
+    }
+    return [...distinct].sort((a, b) => a.localeCompare(b));
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
@@ -394,7 +425,7 @@ export class VaultStorage {
    */
   private async _buildFromIndex(
     index: VaultIndexData,
-    albumFilter: string | null | undefined
+    albumFilter: string | null | undefined,
   ): Promise<VaultFile[]> {
     // Favorites still live in SecureStore for now — read once
     const favorites = await this.getFavorites();
@@ -409,9 +440,7 @@ export class VaultStorage {
       }
 
       // Reconstruct the full URI from rootDir + optional album subdir + name
-      const dir = entry.album
-        ? `${this.rootDir}${entry.album}/`
-        : this.rootDir;
+      const dir = entry.album ? `${this.rootDir}${entry.album}/` : this.rootDir;
       const uri = `${dir}${entry.name}`;
 
       const thumbUri = entry.hasThumb
@@ -426,6 +455,7 @@ export class VaultStorage {
         createdAt: entry.createdAt,
         album: entry.album,
         isFavorite: favorites.has(uri),
+        tags: index.tags[entry.name] ?? [],
       });
     }
 
@@ -445,12 +475,14 @@ export class VaultStorage {
    */
   private async _persistIndexFromScan(
     files: VaultFile[],
-    favorites: Set<string>
+    favorites: Set<string>,
   ): Promise<void> {
     let index = createIndex();
 
     // Build a reverse map: uri → filename for the favorites conversion
-    const uriToName = new Map<string, string>(files.map((f) => [f.uri, f.name]));
+    const uriToName = new Map<string, string>(
+      files.map((f) => [f.uri, f.name]),
+    );
 
     // Convert full-URI favorites to filename-based favorites for the index
     const favoriteNames: string[] = [];
@@ -490,7 +522,7 @@ export class VaultStorage {
     dir: string,
     album: string | null,
     favorites: Set<string>,
-    out: VaultFile[]
+    out: VaultFile[],
   ): Promise<void> {
     const dirInfo = await FileSystem.getInfoAsync(dir);
     if (!dirInfo.exists) return;
@@ -516,13 +548,14 @@ export class VaultStorage {
         createdAt: (info as any).modificationTime ?? Date.now(),
         album,
         isFavorite: favorites.has(uri),
+        tags: [],
       });
     }
   }
 
   /** Strip characters unsafe for directory names. */
   private _safeAlbumName(name: string): string {
-    return name.replace(/[^a-zA-Z0-9_\-. ]/g, '_').trim();
+    return name.replace(/[^a-zA-Z0-9_\-. ]/g, "_").trim();
   }
 
   // ── Private index mutation helpers ────────────────────────────────────────
@@ -536,7 +569,9 @@ export class VaultStorage {
         if (!current || !current.files[name]) return; // already absent
         const updated = indexRemoveEntry(current, name);
         await saveIndex(this.context, updated);
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
     })();
   }
 
@@ -547,7 +582,9 @@ export class VaultStorage {
         if (!current) return;
         const updated = indexUpdateEntryAlbum(current, name, newAlbum);
         await saveIndex(this.context, updated);
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
     })();
   }
 
@@ -576,7 +613,9 @@ export class VaultStorage {
         if (changed) {
           await saveIndex(this.context, { ...current, files });
         }
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
     })();
   }
 
@@ -587,12 +626,14 @@ export class VaultStorage {
         if (!current) return;
         // Filter out all entries belonging to this album
         const filtered = Object.values(current.files).filter(
-          (e) => e.album !== safeName
+          (e) => e.album !== safeName,
         );
-        const files: VaultIndexData['files'] = {};
+        const files: VaultIndexData["files"] = {};
         for (const entry of filtered) files[entry.name] = entry;
         await saveIndex(this.context, { ...current, files });
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
     })();
   }
 }
