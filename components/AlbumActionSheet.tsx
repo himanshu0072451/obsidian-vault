@@ -84,70 +84,139 @@ export function AlbumActionSheet({
     },
   }[mode];
 
+  // return (
+  //   <Modal
+  //     transparent
+  //     visible={visible}
+  //     animationType="fade"
+  //     onRequestClose={onCancel}
+  //     statusBarTranslucent
+  //   >
+  //     <KeyboardAvoidingView
+  //       style={styles.flex}
+  //       behavior={Platform.OS === "ios" ? "padding" : "height"}
+  //     >
+  //       <Pressable style={styles.backdrop} onPress={onCancel}>
+  //         <Pressable style={styles.sheet} onPress={() => {}}>
+  //           <View style={styles.header}>
+  //             <Text style={styles.title}>{copy.title}</Text>
+  //             <Text style={styles.subtitle}>{copy.subtitle}</Text>
+  //           </View>
+
+  //           {mode !== "delete" && (
+  //             <View style={styles.inputWrap}>
+  //               <TextInput
+  //                 style={styles.input}
+  //                 value={inputValue}
+  //                 onChangeText={setInputValue}
+  //                 placeholder={copy.placeholder}
+  //                 placeholderTextColor={Colors.textMuted}
+  //                 maxLength={50}
+  //                 autoCapitalize="words"
+  //                 autoCorrect={false}
+  //                 returnKeyType="done"
+  //                 onSubmitEditing={handleConfirm}
+  //                 selectionColor={Colors.silver}
+  //                 autoFocus
+  //               />
+  //               <Text style={styles.charCount}>{inputValue.length}/50</Text>
+  //             </View>
+  //           )}
+
+  //           <View style={styles.actions}>
+  //             <Button
+  //               label="Cancel"
+  //               variant="secondary"
+  //               onPress={onCancel}
+  //               style={styles.actionBtn}
+  //             />
+  //             <Button
+  //               label={copy.confirmLabel}
+  //               variant={mode === "delete" ? "danger" : "primary"}
+  //               onPress={handleConfirm}
+  //               disabled={mode !== "delete" && inputValue.trim().length === 0}
+  //               style={styles.actionBtn}
+  //             />
+  //           </View>
+  //         </Pressable>
+  //       </Pressable>
+  //     </KeyboardAvoidingView>
+  //   </Modal>
+  // );
+
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="fade"
-      onRequestClose={onCancel}
-      statusBarTranslucent
-    >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <Pressable style={styles.backdrop} onPress={onCancel}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.header}>
-              <Text style={styles.title}>{copy.title}</Text>
-              <Text style={styles.subtitle}>{copy.subtitle}</Text>
-            </View>
+    <>
+      {visible && (
+        <View style={styles.overlay}>
+          <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <Pressable style={styles.backdrop} onPress={onCancel}>
+              <Pressable style={styles.sheet} onPress={() => {}}>
+                <View style={styles.header}>
+                  <Text style={styles.title}>{copy.title}</Text>
+                  <Text style={styles.subtitle}>{copy.subtitle}</Text>
+                </View>
 
-            {mode !== "delete" && (
-              <View style={styles.inputWrap}>
-                <TextInput
-                  style={styles.input}
-                  value={inputValue}
-                  onChangeText={setInputValue}
-                  placeholder={copy.placeholder}
-                  placeholderTextColor={Colors.textMuted}
-                  maxLength={50}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onSubmitEditing={handleConfirm}
-                  selectionColor={Colors.silver}
-                  autoFocus
-                />
-                <Text style={styles.charCount}>{inputValue.length}/50</Text>
-              </View>
-            )}
+                {mode !== "delete" && (
+                  <View style={styles.inputWrap}>
+                    <TextInput
+                      style={styles.input}
+                      value={inputValue}
+                      onChangeText={setInputValue}
+                      placeholder={copy.placeholder}
+                      placeholderTextColor={Colors.textMuted}
+                      maxLength={50}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={handleConfirm}
+                      selectionColor={Colors.silver}
+                      autoFocus
+                    />
+                    <Text style={styles.charCount}>{inputValue.length}/50</Text>
+                  </View>
+                )}
 
-            <View style={styles.actions}>
-              <Button
-                label="Cancel"
-                variant="secondary"
-                onPress={onCancel}
-                style={styles.actionBtn}
-              />
-              <Button
-                label={copy.confirmLabel}
-                variant={mode === "delete" ? "danger" : "primary"}
-                onPress={handleConfirm}
-                disabled={mode !== "delete" && inputValue.trim().length === 0}
-                style={styles.actionBtn}
-              />
-            </View>
-          </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+                <View style={styles.actions}>
+                  <Button
+                    label="Cancel"
+                    variant="secondary"
+                    onPress={onCancel}
+                    style={styles.actionBtn}
+                  />
+                  <Button
+                    label={copy.confirmLabel}
+                    variant={mode === "delete" ? "danger" : "primary"}
+                    onPress={handleConfirm}
+                    disabled={
+                      mode !== "delete" && inputValue.trim().length === 0
+                    }
+                    style={styles.actionBtn}
+                  />
+                </View>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </View>
+      )}
+    </>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    elevation: 9999,
+  } as ViewStyle,
   flex: {
     flex: 1,
   } as ViewStyle,
