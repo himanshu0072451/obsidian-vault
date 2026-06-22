@@ -16,7 +16,6 @@
 
 import React, { useCallback, useEffect, useRef, useState, memo } from "react";
 import {
-  Modal,
   View,
   StyleSheet,
   Dimensions,
@@ -416,85 +415,7 @@ export default memo(function ImageViewer({
   }));
 
   // ─── Render───────────────────────────────────────────────────────────
-
-  // if (!visible && imageOpacity.value === 0) return null;
   if (!visible) return null;
-
-  // return (
-  // <Modal
-  //   visible={visible}
-  //   transparent
-  //   animationType="none"
-  //   statusBarTranslucent
-  //   onRequestClose={onClose}
-  // >
-  //   <StatusBar hidden translucent />
-
-  //   <GestureHandlerRootView style={styles.root}>
-  //     {/* Backdrop */}
-  //     <Animated.View
-  //       style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}
-  //     />
-
-  //     {/* Gesture layer */}
-  //     <GestureDetector gesture={composed}>
-  //       <Animated.View style={[StyleSheet.absoluteFill, imageContainerStyle]}>
-  //         {imageUri && (
-  //           <Animated.Image
-  //             source={{ uri: imageUri }}
-  //             style={[styles.image, imageTransformStyle]}
-  //             resizeMode="contain"
-  //             // onLoadStart={() =>
-  //             //   console.log("[IV] 6. Image onLoadStart", Date.now())
-  //             // }
-  //             // onLoad={() =>
-  //             //   console.log(
-  //             //     "[IV] 7. Image onLoad (decode complete)",
-  //             //     Date.now(),
-  //             //   )
-  //             // }
-  //           />
-  //         )}
-  //       </Animated.View>
-  //     </GestureDetector>
-
-  //     {/* Chrome — header + hint, auto-hides */}
-  //     <Animated.View
-  //       style={[StyleSheet.absoluteFill, styles.chromeLayer, chromeStyle]}
-  //       pointerEvents="box-none"
-  //     >
-  //       {/* Header */}
-  //       <View style={styles.header}>
-  //         <View style={styles.headerGlass}>
-  //           <View style={styles.lockDot} />
-  //           <Text style={styles.fileName} numberOfLines={1}>
-  //             {fileName ?? "Protected Image"}
-  //           </Text>
-  //           <Pressable
-  //             onPress={onClose}
-  //             style={styles.closeBtn}
-  //             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-  //             accessibilityRole="button"
-  //             accessibilityLabel="Close image viewer"
-  //           >
-  //             <Text style={styles.closeBtnText}>✕</Text>
-  //           </Pressable>
-  //         </View>
-  //       </View>
-
-  //       {/* Bottom hint */}
-  //       <View style={styles.hintRow} pointerEvents="none">
-  //         <View style={styles.hintPill}>
-  //           <Text style={styles.hintText}>
-  //             Pinch · Double-tap · Swipe down to close
-  //           </Text>
-  //         </View>
-  //       </View>
-  //     </Animated.View>
-  //   </GestureHandlerRootView>
-  // </Modal>
-  // );
-
   return (
     <>
       {visible && (
