@@ -10,7 +10,7 @@
  * The ChangePasscodeSheet is a second overlay stacked on top when needed.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -22,13 +22,14 @@ import {
   TextStyle,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import Constants from 'expo-constants';
-import { Colors, Typography, Spacing, Radius } from '../utils/design';
-import { useAuth, useVault } from '../hooks/useAuth';
-import { ChangePasscodeSheet } from '../components/ChangePasscodeSheet';
-import type { VaultFile } from '../services/storage';
+} from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+import Constants from "expo-constants";
+import { Colors, Typography, Spacing, Radius } from "../utils/design";
+import { useAuth, useVault } from "../hooks/useAuth";
+import { ChangePasscodeSheet } from "../components/ChangePasscodeSheet";
+import { StatsSheet } from "../components/StatsSheet";
+import type { VaultFile } from "../services/storage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,10 @@ interface SettingsScreenProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SettingsScreen({ onClose, onIndexRebuilt }: SettingsScreenProps) {
+export default function SettingsScreen({
+  onClose,
+  onIndexRebuilt,
+}: SettingsScreenProps) {
   const {
     biometricEnabled,
     biometricAvailability,
@@ -53,67 +57,83 @@ export default function SettingsScreen({ onClose, onIndexRebuilt }: SettingsScre
   } = useAuth();
   const vault = useVault();
 
-  const [stats, setStats]             = useState<{ files: number; size: number; albums: Set<string>; tags: number } | null>(null);
-  const [rebuilding, setRebuilding]   = useState(false);
+  const [stats, setStats] = useState<{
+    files: number;
+    size: number;
+    albums: Set<string>;
+    tags: number;
+  } | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+  const [allFiles, setAllFiles] = useState<VaultFile[]>([]);
+  const [showStats, setShowStats] = useState(false);
   const [showChangePasscode, setShowChangePasscode] = useState(false);
 
   // Load stats on mount
   useEffect(() => {
     vault.getVaultFiles().then((files: VaultFile[]) => {
-      const albums = new Set(files.map((f) => f.album).filter((a): a is string => a !== null));
-      const tags   = new Set(files.flatMap((f) => f.tags));
-      const size   = files.reduce((sum, f) => sum + f.size, 0);
+      setAllFiles(files);
+      const albums = new Set(
+        files.map((f) => f.album).filter((a): a is string => a !== null),
+      );
+      const tags = new Set(files.flatMap((f) => f.tags));
+      const size = files.reduce((sum, f) => sum + f.size, 0);
       setStats({ files: files.length, size, albums, tags: tags.size });
     });
   }, [vault]);
 
   // ── Biometric toggle ──────────────────────────────────────────────────────
 
-  const handleBiometricToggle = useCallback(async (value: boolean) => {
-    if (value) {
-      await enableBiometrics();
-    } else {
-      await disableBiometrics();
-    }
-  }, [enableBiometrics, disableBiometrics]);
+  const handleBiometricToggle = useCallback(
+    async (value: boolean) => {
+      if (value) {
+        await enableBiometrics();
+      } else {
+        await disableBiometrics();
+      }
+    },
+    [enableBiometrics, disableBiometrics],
+  );
 
   // ── Rebuild Index ─────────────────────────────────────────────────────────
 
   const handleRebuildIndex = useCallback(() => {
     Alert.alert(
-      'Rebuild Vault Index',
-      'This will rescan all files from disk. Tag data will be lost — files, albums, and favorites are safe.\n\nContinue?',
+      "Rebuild Vault Index",
+      "This will rescan all files from disk. Tag data will be lost — files, albums, and favorites are safe.\n\nContinue?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Rebuild',
-          style: 'destructive',
+          text: "Rebuild",
+          style: "destructive",
           onPress: async () => {
             setRebuilding(true);
             try {
               await vault.rebuildIndex();
               onIndexRebuilt();
-              Alert.alert('Done', 'Vault index has been rebuilt.');
+              Alert.alert("Done", "Vault index has been rebuilt.");
             } catch (e) {
-              Alert.alert('Error', 'Index rebuild failed. Your files are safe.');
+              Alert.alert(
+                "Error",
+                "Index rebuild failed. Your files are safe.",
+              );
             } finally {
               setRebuilding(false);
             }
           },
         },
-      ]
+      ],
     );
   }, [vault, onIndexRebuilt]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  const version = Constants.expoConfig?.version ?? '—';
+  const version = Constants.expoConfig?.version ?? "—";
 
   const biometricAvailable =
     biometricAvailability?.supported === true &&
     biometricAvailability?.enrolled === true;
 
-  const biometricLabel = biometricAvailability?.label ?? 'Biometrics';
+  const biometricLabel = biometricAvailability?.label ?? "Biometrics";
 
   function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -125,30 +145,36 @@ export default function SettingsScreen({ onClose, onIndexRebuilt }: SettingsScre
 
   return (
     <Animated.View entering={FadeIn.duration(200)} style={styles.root}>
-
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close settings">
+        <Pressable
+          onPress={onClose}
+          style={styles.closeBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Close settings"
+        >
           <Text style={styles.closeBtnText}>✕</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Settings</Text>
         <View style={styles.closeBtn} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ── Security ─────────────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Security</Text>
         <View style={styles.card}>
-
           {/* Biometric toggle */}
           <View style={[styles.row, !biometricAvailable && styles.rowDisabled]}>
             <View style={styles.rowLeft}>
               <Text style={styles.rowTitle}>{biometricLabel}</Text>
               <Text style={styles.rowSubtitle}>
                 {biometricAvailable
-                  ? 'Unlock without typing your passcode'
-                  : 'Not available on this device'}
+                  ? "Unlock without typing your passcode"
+                  : "Not available on this device"}
               </Text>
             </View>
             <Switch
@@ -166,7 +192,9 @@ export default function SettingsScreen({ onClose, onIndexRebuilt }: SettingsScre
           <View style={styles.row}>
             <View style={styles.rowLeft}>
               <Text style={styles.rowTitle}>Lock on Background</Text>
-              <Text style={styles.rowSubtitle}>Lock vault when you switch apps</Text>
+              <Text style={styles.rowSubtitle}>
+                Lock vault when you switch apps
+              </Text>
             </View>
             <Switch
               value={lockOnBackground}
@@ -187,51 +215,69 @@ export default function SettingsScreen({ onClose, onIndexRebuilt }: SettingsScre
           >
             <View style={styles.rowLeft}>
               <Text style={styles.rowTitle}>Change Passcode</Text>
-              <Text style={styles.rowSubtitle}>Update your 6-digit vault passcode</Text>
+              <Text style={styles.rowSubtitle}>
+                Update your 6-digit vault passcode
+              </Text>
             </View>
             <Text style={styles.chevron}>›</Text>
           </Pressable>
-
         </View>
 
         {/* ── Vault ────────────────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Vault</Text>
         <View style={styles.card}>
-
-          {/* Storage statistics */}
-          <View style={styles.row}>
+          {/* Storage statistics — tap to open full stats */}
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => setShowStats(true)}
+            accessibilityRole="button"
+            accessibilityLabel="View storage statistics"
+          >
             <View style={styles.rowLeft}>
               <Text style={styles.rowTitle}>Storage</Text>
               {stats === null ? (
-                <ActivityIndicator size="small" color={Colors.textMuted} style={{ marginTop: 4 }} />
+                <ActivityIndicator
+                  size="small"
+                  color={Colors.textMuted}
+                  style={{ marginTop: 4 }}
+                />
               ) : (
                 <Text style={styles.rowSubtitle}>
-                  {`${stats.files} file${stats.files === 1 ? '' : 's'}  ·  ${formatSize(stats.size)}  ·  ${stats.albums.size} album${stats.albums.size === 1 ? '' : 's'}  ·  ${stats.tags} tag${stats.tags === 1 ? '' : 's'}`}
+                  {`${stats.files} file${stats.files === 1 ? "" : "s"}  ·  ${formatSize(stats.size)}  ·  ${stats.albums.size} album${stats.albums.size === 1 ? "" : "s"}  ·  ${stats.tags} tag${stats.tags === 1 ? "" : "s"}`}
                 </Text>
               )}
             </View>
-          </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
 
           <View style={styles.divider} />
 
           {/* Rebuild Index */}
           <Pressable
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed, rebuilding && styles.rowDisabled]}
+            style={({ pressed }) => [
+              styles.row,
+              pressed && styles.rowPressed,
+              rebuilding && styles.rowDisabled,
+            ]}
             onPress={rebuilding ? undefined : handleRebuildIndex}
             accessibilityRole="button"
             accessibilityLabel="Rebuild vault index"
             disabled={rebuilding}
           >
             <View style={styles.rowLeft}>
-              <Text style={[styles.rowTitle, styles.destructiveText]}>Rebuild Vault Index</Text>
-              <Text style={styles.rowSubtitle}>Rescan all files from disk (tags will be lost)</Text>
+              <Text style={[styles.rowTitle, styles.destructiveText]}>
+                Rebuild Vault Index
+              </Text>
+              <Text style={styles.rowSubtitle}>
+                Rescan all files from disk (tags will be lost)
+              </Text>
             </View>
-            {rebuilding
-              ? <ActivityIndicator size="small" color={Colors.textMuted} />
-              : <Text style={styles.chevron}>›</Text>
-            }
+            {rebuilding ? (
+              <ActivityIndicator size="small" color={Colors.textMuted} />
+            ) : (
+              <Text style={styles.chevron}>›</Text>
+            )}
           </Pressable>
-
         </View>
 
         {/* ── About ────────────────────────────────────────────────────── */}
@@ -252,7 +298,11 @@ export default function SettingsScreen({ onClose, onIndexRebuilt }: SettingsScre
         onClose={() => setShowChangePasscode(false)}
         onChangePasscode={changePasscode}
       />
-
+      <StatsSheet
+        visible={showStats}
+        files={allFiles}
+        onClose={() => setShowStats(false)}
+      />
     </Animated.View>
   );
 }
@@ -261,19 +311,22 @@ export default function SettingsScreen({ onClose, onIndexRebuilt }: SettingsScre
 
 const styles = StyleSheet.create({
   root: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: Colors.background,
     zIndex: 100,
     elevation: 100,
   } as ViewStyle,
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing['2xl'],
+    paddingTop: Spacing["2xl"],
     paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
@@ -296,7 +349,7 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.lg,
     gap: Spacing.xs,
-    paddingBottom: Spacing['3xl'],
+    paddingBottom: Spacing["3xl"],
   } as ViewStyle,
 
   sectionLabel: {
@@ -304,7 +357,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
     color: Colors.textMuted,
     letterSpacing: Typography.widest,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     paddingHorizontal: Spacing.xs,
     marginTop: Spacing.lg,
     marginBottom: Spacing.xs,
@@ -315,13 +368,13 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    overflow: 'hidden',
+    overflow: "hidden",
   } as ViewStyle,
 
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.md,

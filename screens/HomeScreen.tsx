@@ -44,6 +44,7 @@ import type { AlbumActionSheetMode } from "../components/AlbumActionSheet";
 import { DecoySetupSheet } from "../components/DecoySetupSheet";
 import { MoveFileSheet } from "../components/MoveFileSheet";
 import { TagSheet } from "../components/TagSheet";
+import { FileDetailsSheet } from "../components/FileDetailsSheet";
 import { useAlbums } from "../hooks/useAlbums";
 
 // ─── ListHeader props ─────────────────────────────────────────────────────────
@@ -322,6 +323,7 @@ export default function HomeScreen({
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [tagSheetVisible, setTagSheetVisible] = useState(false);
   const [tagSheetFile, setTagSheetFile] = useState<VaultFile | null>(null);
+  const [detailsFile, setDetailsFile] = useState<VaultFile | null>(null);
 
   // ─── Derived visible list ─────────────────────────────────────────────────
 
@@ -635,6 +637,10 @@ export default function HomeScreen({
     });
   }, []);
 
+  const handleOpenDetails = useCallback((file: VaultFile) => {
+    setDetailsFile(file);
+  }, []);
+
   // ─── Multi-select ─────────────────────────────────────────────────────────
 
   // Clear selection whenever the visible filter changes — acting on
@@ -870,6 +876,7 @@ export default function HomeScreen({
         onToggleFavorite={handleToggleFavorite}
         onOpenMoveSheet={handleMoveFile}
         onOpenTagSheet={handleOpenTagSheet}
+        onOpenDetails={handleOpenDetails}
         albums={albums}
       />
     ),
@@ -883,6 +890,7 @@ export default function HomeScreen({
       handleToggleFavorite,
       handleMoveFile,
       handleOpenTagSheet,
+      handleOpenDetails,
       albums,
     ],
   );
@@ -1036,6 +1044,11 @@ export default function HomeScreen({
         onRemoveTag={tagSheetFile ? handleRemoveTag : undefined}
         onDone={handleTagSheetDone}
       />
+      <FileDetailsSheet
+        visible={detailsFile !== null}
+        file={detailsFile}
+        onClose={() => setDetailsFile(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -1053,6 +1066,7 @@ interface VaultFileCardProps {
   onToggleFavorite: (file: VaultFile) => void;
   onOpenMoveSheet: (file: VaultFile) => void;
   onOpenTagSheet: (file: VaultFile) => void;
+  onOpenDetails: (file: VaultFile) => void;
   albums: string[];
 }
 
@@ -1067,6 +1081,7 @@ const VaultFileCard = memo(function VaultFileCard({
   onToggleFavorite,
   onOpenMoveSheet,
   onOpenTagSheet,
+  onOpenDetails,
   albums,
 }: VaultFileCardProps) {
   const scale = useSharedValue(1);
@@ -1241,7 +1256,14 @@ const VaultFileCard = memo(function VaultFileCard({
                   <Text style={styles.deleteIcon}>✕</Text>
                 </Pressable>
               </Animated.View>
-              <Text style={styles.chevron}>›</Text>
+              <Pressable
+                onPress={() => onOpenDetails(file)}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel="View file details"
+              >
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
             </View>
           )}
         </View>
