@@ -1,10 +1,11 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import LockScreen from "./screens/LockScreen";
 import HomeScreen from "./screens/HomeScreen";
+import SettingsScreen from "./screens/SettingsScreen";
 import { Colors, Typography, Spacing, Radius } from "./utils/design";
 import { activate as activateScreenSecurity } from "./services/ScreenSecurityService";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -18,7 +19,22 @@ function AppNavigator() {
     enableBiometrics,
     skipBiometricOffer,
     skippedBiometricOffer,
+    vaultContext,
   } = useAuth();
+
+  const [showSettings, setShowSettings] = useState(false);
+  const [indexRebuildKey, setIndexRebuildKey] = useState(0);
+
+  const handleOpenSettings = useCallback(() => setShowSettings(true), []);
+  const handleCloseSettings = useCallback(() => setShowSettings(false), []);
+  const handleIndexRebuilt = useCallback(() => {
+    setIndexRebuildKey((k) => k + 1);
+    setShowSettings(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isUnlocked) setShowSettings(false);
+  }, [isUnlocked]);
 
   if (isLoading) {
     return <View style={styles.splash} />;
@@ -69,7 +85,20 @@ function AppNavigator() {
 
   return (
     <Animated.View entering={FadeIn.duration(300)} style={styles.root}>
-      {isUnlocked ? <HomeScreen /> : <LockScreen />}
+      {isUnlocked ? (
+        <HomeScreen
+          onOpenSettings={handleOpenSettings}
+          indexRebuildKey={indexRebuildKey}
+        />
+      ) : (
+        <LockScreen />
+      )}
+      {isUnlocked && showSettings && vaultContext === "real" && (
+        <SettingsScreen
+          onClose={handleCloseSettings}
+          onIndexRebuilt={handleIndexRebuilt}
+        />
+      )}
     </Animated.View>
   );
 }

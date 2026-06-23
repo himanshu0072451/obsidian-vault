@@ -14,7 +14,10 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
+import { AppState, AppStateStatus } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import { realVault, decoyVault, VaultStorage } from "../services/storage";
 import type { VaultContext } from "../services/storage";
 import {
@@ -85,6 +88,12 @@ interface AuthState {
   skipBiometricOffer: () => void;
   /** Whether the user has skipped the offer this session. */
   skippedBiometricOffer: boolean;
+  changePasscode: (
+    currentPasscode: string,
+    newPasscode: string,
+  ) => Promise<"ok" | "wrong_current">;
+  lockOnBackground: boolean;
+  setLockOnBackground: (value: boolean) => Promise<void>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -106,6 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useState<BiometricAvailability | null>(null);
   // In-memory only — resets on every app open, so offer shows once per session until enabled
   const [skippedBiometricOffer, setSkippedBiometricOffer] = useState(false);
+  const [lockOnBackground, setLockOnBackgroundState] = useState(false);
+  const isUnlockedRef = useRef(false);
 
   // Bootstrap: check which vaults have passcodes configured + biometric state
   useEffect(() => {
@@ -114,11 +125,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       decoyVault.hasPasscode(),
       isBiometricEnabled(),
       getBiometricAvailability(),
-    ]).then(([hasReal, hasDec, bioEnabled, bioAvail]) => {
+      SecureStore.getItemAsync("vault_lock_on_bg"),
+    ]).then(([hasReal, hasDec, bioEnabled, bioAvail, lockBgRaw]) => {
       setIsSetup(hasReal);
       setHasDecoy(hasDec);
       setBiometricEnabled(bioEnabled);
       setBiometricAvailability(bioAvail);
+      setLockOnBackgroundState(lockBgRaw === "true");
       setIsLoading(false);
     });
   }, []);
@@ -216,7 +229,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setVaultContext(null);
     setActiveVault(null);
     setIsUnlocked(false);
+    isUnlockedRef.current = false;
   }, []);
+
+  useEffect(() => {
+    isUnlockedRef.current = isUnlocked;
+  }, [isUnlocked]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
+      if (next === "background" && lockOnBackground && isUnlockedRef.current) {
+        setPasscode("");
+        setVaultContext(null);
+        setActiveVault(null);
+        setIsUnlocked(false);
+        isUnlockedRef.current = false;
+      }
+    });
+    return () => sub.remove();
+  }, [lockOnBackground]);
+
+  const changePasscode = useCallback(
+    async (
+      currentPasscode: string,
+      newPasscode: string,
+    ): Promise<"ok" | "wrong_current"> => {
+      if (vaultContext !== "real") return "wrong_current";
+      const valid = await realVault.verifyPasscode(currentPasscode);
+      if (!valid) return "wrong_current";
+      await realVault.savePasscodeHash(newPasscode);
+      setPasscode(newPasscode);
+      if (biometricEnabled) {
+        try {
+          await enrollBiometrics(newPasscode);
+        } catch {
+          await disableBiometrics();
+          setBiometricEnabled(false);
+        }
+      }
+      return "ok";
+    },
+    [vaultContext, biometricEnabled],
+  );
+
+  const setLockOnBackground = useCallback(
+    async (value: boolean): Promise<void> => {
+      await SecureStore.setItemAsync(
+        "vault_lock_on_bg",
+        value ? "true" : "false",
+      );
+      setLockOnBackgroundState(value);
+    },
+    [],
+  );
 
   return (
     <AuthContext.Provider
@@ -239,6 +304,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         disableBiometrics: disableBiometricsCallback,
         skipBiometricOffer: skipBiometricOfferCallback,
         skippedBiometricOffer,
+        changePasscode,
+        lockOnBackground,
+        setLockOnBackground,
       }}
     >
       {children}

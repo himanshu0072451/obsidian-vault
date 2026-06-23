@@ -412,6 +412,20 @@ export class VaultStorage {
     return [...distinct].sort((a, b) => a.localeCompare(b));
   }
 
+  async rebuildIndex(): Promise<void> {
+    await this.ensureRootDir();
+    const favorites = await this.getFavorites();
+    const files: VaultFile[] = [];
+    await this._collectFilesFromDir(this.rootDir, null, favorites, files);
+    const albums = await this.listAlbums();
+    for (const album of albums) {
+      const dir = `${this.rootDir}${album}/`;
+      await this._collectFilesFromDir(dir, album, favorites, files);
+    }
+    const sorted = files.sort((a, b) => b.createdAt - a.createdAt);
+    await this._persistIndexFromScan(sorted, favorites);
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
 
   /**

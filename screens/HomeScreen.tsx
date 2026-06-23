@@ -72,6 +72,7 @@ interface ListHeaderProps {
   onRenameAlbum: (name: string) => void;
   onDeleteAlbum: (name: string) => void;
   onTagChipPress: (tag: string) => void;
+  onOpenSettings: () => void;
 }
 
 const ListHeader = memo(function ListHeader({
@@ -94,6 +95,7 @@ const ListHeader = memo(function ListHeader({
   onRenameAlbum,
   onDeleteAlbum,
   onTagChipPress,
+  onOpenSettings,
 }: ListHeaderProps) {
   return (
     <View style={styles.listHeader}>
@@ -107,6 +109,17 @@ const ListHeader = memo(function ListHeader({
           <Text style={styles.subGreeting}>Your encrypted storage</Text>
         </View>
         <View style={styles.headerActions}>
+          {vaultContext === "real" && (
+            <Pressable
+              onPress={onOpenSettings}
+              style={styles.headerBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.headerBtnIcon}>⚙</Text>
+            </Pressable>
+          )}
           {vaultContext === "real" && !hasDecoy && (
             <Pressable
               onPress={onDecoySetup}
@@ -251,7 +264,15 @@ const ListHeader = memo(function ListHeader({
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
-export default function HomeScreen() {
+interface HomeScreenProps {
+  onOpenSettings: () => void;
+  indexRebuildKey: number;
+}
+
+export default function HomeScreen({
+  onOpenSettings,
+  indexRebuildKey,
+}: HomeScreenProps) {
   const { lock, passcode, setupDecoy, hasDecoy, vaultContext } = useAuth();
   const vault = useVault();
   const {
@@ -333,7 +354,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadFiles();
-  }, [loadFiles]);
+  }, [loadFiles, indexRebuildKey]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -902,6 +923,7 @@ export default function HomeScreen() {
             onRenameAlbum={openRenameSheet}
             onDeleteAlbum={openDeleteSheet}
             onTagChipPress={handleTagChipPress}
+            onOpenSettings={onOpenSettings}
           />
         }
         ListEmptyComponent={<EmptyVault />}
