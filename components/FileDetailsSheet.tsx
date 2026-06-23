@@ -6,7 +6,7 @@
  * All data from the VaultFile object — zero storage reads.
  */
 
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
@@ -15,10 +15,10 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-} from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { Colors, Typography, Spacing, Radius } from '../utils/design';
-import type { VaultFile } from '../services/storage';
+} from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+import { Colors, Typography, Spacing, Radius } from "../utils/design";
+import type { VaultFile } from "../services/storage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,8 +38,11 @@ function formatFileSize(bytes: number): string {
 
 function formatFullDate(ts: number): string {
   return new Date(ts).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -52,21 +55,30 @@ function formatFullDate(ts: number): string {
  *   abc.pdf_1700000000000.vault   → Document
  */
 function detectFileType(name: string): string {
-  const withoutVault = name.replace(/\.vault$/, '');
-  const underscoreIdx = withoutVault.lastIndexOf('_');
-  const withoutTimestamp = underscoreIdx > -1
-    ? withoutVault.slice(0, underscoreIdx)
-    : withoutVault;
-  const dotIdx = withoutTimestamp.lastIndexOf('.');
-  if (dotIdx === -1) return 'Encrypted file';
+  const withoutVault = name.replace(/\.vault$/, "");
+  const underscoreIdx = withoutVault.lastIndexOf("_");
+  const withoutTimestamp =
+    underscoreIdx > -1 ? withoutVault.slice(0, underscoreIdx) : withoutVault;
+  const dotIdx = withoutTimestamp.lastIndexOf(".");
+  if (dotIdx === -1) return "Encrypted file";
   const ext = withoutTimestamp.slice(dotIdx + 1).toLowerCase();
-  const photos = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'gif', 'bmp', 'tiff'];
-  const videos = ['mp4', 'mov', 'avi', 'mkv', 'm4v', 'wmv', 'webm', '3gp'];
-  const docs   = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'];
-  if (photos.includes(ext)) return 'Photo';
-  if (videos.includes(ext)) return 'Video';
-  if (docs.includes(ext))   return 'Document';
-  return 'Encrypted file';
+  const photos = [
+    "jpg",
+    "jpeg",
+    "png",
+    "heic",
+    "heif",
+    "webp",
+    "gif",
+    "bmp",
+    "tiff",
+  ];
+  const videos = ["mp4", "mov", "avi", "mkv", "m4v", "wmv", "webm", "3gp"];
+  const docs = ["pdf", "doc", "docx", "txt", "xls", "xlsx", "ppt", "pptx"];
+  if (photos.includes(ext)) return "Photo";
+  if (videos.includes(ext)) return "Video";
+  if (docs.includes(ext)) return "Document";
+  return "Encrypted file";
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -82,9 +94,9 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const rowStyles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     paddingVertical: 11,
     gap: Spacing.md,
   } as ViewStyle,
@@ -96,21 +108,25 @@ const rowStyles = StyleSheet.create({
   value: {
     fontSize: Typography.sm,
     color: Colors.text,
-    textAlign: 'right',
+    textAlign: "right",
     flex: 1,
   } as TextStyle,
 });
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function FileDetailsSheet({ visible, file, onClose }: FileDetailsSheetProps) {
+export function FileDetailsSheet({
+  visible,
+  file,
+  onClose,
+}: FileDetailsSheetProps) {
   if (!visible || file === null) return null;
 
-  const displayName = file.name.replace('.vault', '');
-  const fileType    = detectFileType(file.name);
-  const addedDate   = formatFullDate(file.createdAt * 1000);
-  const albumLabel  = file.album ?? 'Vault Root';
-  const sizeLabel   = formatFileSize(file.size);
+  const displayName = file.displayName ?? file.name.replace(".vault", "");
+  const fileType = detectFileType(file.name);
+  const addedDate = formatFullDate(file.createdAt * 1000);
+  const albumLabel = file.album ?? "Vault Root";
+  const sizeLabel = formatFileSize(file.size);
 
   return (
     <Animated.View entering={FadeIn.duration(150)} style={styles.overlay}>
@@ -138,20 +154,22 @@ export function FileDetailsSheet({ visible, file, onClose }: FileDetailsSheetPro
           <View style={styles.fileIcon}>
             <Text style={styles.fileIconText}>⬡</Text>
           </View>
-          <Text style={styles.fileName} numberOfLines={3}>{displayName}</Text>
+          <Text style={styles.fileName} numberOfLines={3}>
+            {displayName}
+          </Text>
         </View>
 
         {/* Metadata rows */}
         <View style={styles.card}>
-          <Row label="Type"    value={fileType} />
+          <Row label="Type" value={fileType} />
           <View style={styles.divider} />
-          <Row label="Size"    value={sizeLabel} />
+          <Row label="Size" value={sizeLabel} />
           <View style={styles.divider} />
-          <Row label="Added"   value={addedDate} />
+          <Row label="Added" value={addedDate} />
           <View style={styles.divider} />
-          <Row label="Album"   value={albumLabel} />
+          <Row label="Album" value={albumLabel} />
           <View style={styles.divider} />
-          <Row label="Starred" value={file.isFavorite ? '★ Yes' : 'No'} />
+          <Row label="Starred" value={file.isFavorite ? "★ Yes" : "No"} />
         </View>
 
         {/* Tags */}
@@ -189,19 +207,22 @@ export function FileDetailsSheet({ visible, file, onClose }: FileDetailsSheetPro
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: Colors.background,
     zIndex: 9999,
     elevation: 9999,
   } as ViewStyle,
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing['2xl'],
+    paddingTop: Spacing["2xl"],
     paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
@@ -215,7 +236,7 @@ const styles = StyleSheet.create({
 
   headerSpacer: { width: 48 } as ViewStyle,
 
-  closeBtn: { width: 48, alignItems: 'flex-end' } as ViewStyle,
+  closeBtn: { width: 48, alignItems: "flex-end" } as ViewStyle,
   closeBtnText: {
     fontSize: Typography.base,
     color: Colors.silver,
@@ -229,19 +250,20 @@ const styles = StyleSheet.create({
   } as ViewStyle,
 
   nameSection: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: Spacing.lg,
     gap: Spacing.md,
   } as ViewStyle,
 
   fileIcon: {
-    width: 64, height: 64,
+    width: 64,
+    height: 64,
     borderRadius: Radius.lg,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   } as ViewStyle,
 
   fileIconText: { fontSize: 28, color: Colors.textMuted } as TextStyle,
@@ -250,7 +272,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.lg,
     fontWeight: Typography.semibold,
     color: Colors.text,
-    textAlign: 'center',
+    textAlign: "center",
     letterSpacing: Typography.tight,
   } as TextStyle,
 
@@ -260,7 +282,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     paddingHorizontal: Spacing.lg,
-    overflow: 'hidden',
+    overflow: "hidden",
   } as ViewStyle,
 
   divider: {
@@ -273,14 +295,14 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
     color: Colors.textMuted,
     letterSpacing: Typography.widest,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     paddingHorizontal: Spacing.xs,
     marginTop: Spacing.sm,
   } as TextStyle,
 
   tagWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.xs,
     paddingVertical: Spacing.md,
   } as ViewStyle,
@@ -303,7 +325,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     color: Colors.textMuted,
     paddingVertical: Spacing.md,
-    textAlign: 'center',
+    textAlign: "center",
   } as TextStyle,
 
   bottomPad: { height: Spacing.xl } as ViewStyle,

@@ -94,6 +94,8 @@ interface AuthState {
   ) => Promise<"ok" | "wrong_current">;
   lockOnBackground: boolean;
   setLockOnBackground: (value: boolean) => Promise<void>;
+  suppressBackgroundLock: () => void;
+  resumeBackgroundLock: () => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [skippedBiometricOffer, setSkippedBiometricOffer] = useState(false);
   const [lockOnBackground, setLockOnBackgroundState] = useState(false);
   const isUnlockedRef = useRef(false);
+  const suppressLockRef = useRef(false);
 
   // Bootstrap: check which vaults have passcodes configured + biometric state
   useEffect(() => {
@@ -238,7 +241,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
-      if (next === "background" && lockOnBackground && isUnlockedRef.current) {
+      if (
+        next === "background" &&
+        lockOnBackground &&
+        isUnlockedRef.current &&
+        !suppressLockRef.current
+      ) {
         setPasscode("");
         setVaultContext(null);
         setActiveVault(null);
@@ -283,6 +291,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const suppressBackgroundLock = useCallback(() => {
+    suppressLockRef.current = true;
+  }, []);
+
+  const resumeBackgroundLock = useCallback(() => {
+    suppressLockRef.current = false;
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -307,6 +323,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         changePasscode,
         lockOnBackground,
         setLockOnBackground,
+        suppressBackgroundLock,
+        resumeBackgroundLock,
       }}
     >
       {children}

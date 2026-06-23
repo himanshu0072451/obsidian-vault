@@ -70,6 +70,7 @@ export interface IndexEntry {
    * false until Phase 3 implements thumbnail generation.
    */
   hasThumb: boolean;
+  displayName?: string;
 }
 
 /**

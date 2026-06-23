@@ -243,10 +243,11 @@ export class VaultStorage {
   async recordEncryptedFile(
     outPath: string,
     albumName: string | null,
+    displayName?: string,
   ): Promise<void> {
     try {
       const info = await FileSystem.getInfoAsync(outPath);
-      if (!info.exists) return; // encrypt must have failed — nothing to record
+      if (!info.exists) return;
 
       const name = outPath.split("/").pop()!;
       const entry: IndexEntry = {
@@ -256,7 +257,8 @@ export class VaultStorage {
         createdAt: Math.floor(
           (info as any).modificationTime ?? Date.now() / 1000,
         ),
-        hasThumb: false, // thumbnails not implemented yet
+        hasThumb: false,
+        displayName,
       };
 
       const current = (await loadIndex(this.context)) ?? createIndex();
@@ -470,6 +472,7 @@ export class VaultStorage {
         album: entry.album,
         isFavorite: favorites.has(uri),
         tags: index.tags[entry.name] ?? [],
+        displayName: entry.displayName,
       });
     }
 
@@ -514,6 +517,7 @@ export class VaultStorage {
         size: file.size,
         createdAt: file.createdAt,
         hasThumb: file.thumbUri !== null,
+        displayName: file.displayName,
       };
       index = indexAddEntry(index, entry);
     }
@@ -563,6 +567,7 @@ export class VaultStorage {
         album,
         isFavorite: favorites.has(uri),
         tags: [],
+        displayName: undefined,
       });
     }
   }

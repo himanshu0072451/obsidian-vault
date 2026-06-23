@@ -388,14 +388,16 @@ export default function HomeScreen({
     async (file: VaultFile) => {
       try {
         setIsDecrypting(true);
-        setDecryptingFileName(file.name.replace(".vault", ""));
+        setDecryptingFileName(
+          file.displayName ?? file.name.replace(".vault", ""),
+        );
         const outPath = await decryptImage(
           file.uri,
           passcode,
           FileSystem.cacheDirectory!,
         );
         activeTempUri.current = outPath;
-        setPreviewFileName(file.name.replace(".vault", ""));
+        setPreviewFileName(file.displayName ?? file.name.replace(".vault", ""));
         setPreviewUri(outPath);
       } catch (e: any) {
         const isWrongPasscode =
@@ -430,7 +432,7 @@ export default function HomeScreen({
     (file: VaultFile) => {
       Alert.alert(
         "Delete Encrypted File",
-        `Permanently delete "${file.name.replace(".vault", "")}"?\n\nThis cannot be undone.`,
+        `Permanently delete "${file.displayName ?? file.name.replace(".vault", "")}"?\n\nThis cannot be undone.`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -1019,7 +1021,8 @@ export default function HomeScreen({
         visible={moveSheetVisible}
         fileName={
           moveSheetFile
-            ? moveSheetFile.name.replace(".vault", "")
+            ? (moveSheetFile.displayName ??
+              moveSheetFile.name.replace(".vault", ""))
             : `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"}`
         }
         currentAlbum={moveSheetFile ? moveSheetFile.album : batchCurrentAlbum}
@@ -1035,7 +1038,8 @@ export default function HomeScreen({
         visible={tagSheetVisible}
         targetLabel={
           tagSheetFile
-            ? tagSheetFile.name.replace(".vault", "")
+            ? (tagSheetFile.displayName ??
+              tagSheetFile.name.replace(".vault", ""))
             : `${selectedUris.size} file${selectedUris.size === 1 ? "" : "s"}`
         }
         currentTags={tagSheetFile?.tags ?? []}
@@ -1144,7 +1148,7 @@ const VaultFileCard = memo(function VaultFileCard({
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         accessibilityRole="button"
-        accessibilityLabel={`Decrypt and preview ${file.name.replace(".vault", "")}`}
+        accessibilityLabel={`Decrypt and preview ${file.displayName ?? file.name.replace(".vault", "")}`}
       >
         <View style={[styles.fileCard, isSelected && styles.fileCardSelected]}>
           <View style={styles.fileLeft}>
@@ -1161,7 +1165,7 @@ const VaultFileCard = memo(function VaultFileCard({
             )}
             <View style={styles.fileMeta}>
               <Text style={styles.fileName} numberOfLines={1}>
-                {file.name.replace(".vault", "")}
+                {file.displayName ?? file.name.replace(".vault", "")}
               </Text>
               <Text style={styles.fileDetail}>
                 {formatFileSize(file.size)}
@@ -1250,7 +1254,7 @@ const VaultFileCard = memo(function VaultFileCard({
                   onPress={handleDeletePress}
                   hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Delete ${file.name.replace(".vault", "")}`}
+                  accessibilityLabel={`Delete ${file.displayName ?? file.name.replace(".vault", "")}`}
                   style={styles.deleteBtn}
                 >
                   <Text style={styles.deleteIcon}>✕</Text>

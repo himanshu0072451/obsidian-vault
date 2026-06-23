@@ -99,7 +99,7 @@ export default function SettingsScreen({
   const handleRebuildIndex = useCallback(() => {
     Alert.alert(
       "Rebuild Vault Index",
-      "This will rescan all files from disk. Tag data will be lost — files, albums, and favorites are safe.\n\nContinue?",
+      "This will rescan all files from disk. Display names and tags will be lost — files, albums, and favorites are safe.\n\nContinue?",
       [
         { text: "Cancel", style: "cancel" },
         {

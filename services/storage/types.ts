@@ -21,6 +21,7 @@ export interface VaultFile {
   isFavorite: boolean;
   /** Title-Case, deduplicated tags applied to this file. */
   tags: string[];
+  displayName?: string;
 }
 
 /** A single activity log entry. */
