@@ -33,7 +33,7 @@ import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import { useAuth, useVault } from "../hooks/useAuth";
 import { useVaultOperations } from "../hooks/useVaultOperations";
 import { ProgressOverlay } from "../components/ProgressOverlay";
-import { Card, StatCard } from "../components/Card";
+import { Card, HeroStat } from "../components/Card";
 import type { VaultFile } from "../services/storage";
 import { decryptImage } from "../services/encryption";
 import * as FileSystem from "expo-file-system";
@@ -144,20 +144,12 @@ const ListHeader = memo(function ListHeader({
         </View>
       </Animated.View>
 
-      {/* ── Stats ────────────────────────────────────────────────────────── */}
-      <Animated.View
-        entering={FadeInDown.delay(80).duration(400)}
-        style={styles.statsRow}
-      >
-        <StatCard
+      {/* ── Hero stat ────────────────────────────────────────────────────── */}
+      <Animated.View entering={FadeInDown.delay(80).duration(400)}>
+        <HeroStat
+          eyebrow="Total Files"
           value={visibleFiles.length}
-          label="Encrypted"
-          style={styles.statFlex}
-        />
-        <StatCard
-          value={formatFileSize(totalSize)}
-          label="Total size"
-          style={styles.statFlex}
+          caption={`${formatFileSize(totalSize)} encrypted on this device`}
         />
       </Animated.View>
 
@@ -1511,9 +1503,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     letterSpacing: 1,
   } as TextStyle,
-
-  statsRow: { flexDirection: "row", gap: Spacing.md } as ViewStyle,
-  statFlex: { flex: 1 } as ViewStyle,
 
   actionsCol: { gap: Spacing.md } as ViewStyle,
   actionCard: {
