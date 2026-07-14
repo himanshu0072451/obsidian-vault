@@ -156,18 +156,16 @@ const ListHeader = memo(function ListHeader({
       {/* ── Actions ──────────────────────────────────────────────────────── */}
       <Animated.View
         entering={FadeInDown.delay(160).duration(400)}
-        style={styles.actionsCol}
+        style={styles.actionsRow}
       >
-        <ActionCard
-          icon="🔒"
-          title="Encrypt Images"
-          description="Select photos from your library to lock in the vault"
+        <PrimaryAction
+          icon="+"
+          title="Import Images"
+          description="Encrypt photos from your library"
           onPress={onEncrypt}
         />
-        <ActionCard
-          icon="📷"
-          title="Secure Camera"
-          description="Capture a photo and encrypt it immediately"
+        <SecondaryAction
+          title="Capture"
           onPress={onSecureCamera}
         />
       </Animated.View>
@@ -1360,28 +1358,32 @@ const SelectionActionBar = memo(function SelectionActionBar({
   );
 });
 
-// ─── ActionCard ───────────────────────────────────────────────────────────────
+// ─── PrimaryAction / SecondaryAction ────────────────────────────────────────
+// Import is the dominant, most-used action — rendered as a solid tonal
+// button. Capture is the quieter, occasional action — a compact outline
+// tile beside it. Distinct shapes give the pair a clear hierarchy instead
+// of two identical rows.
 
-interface ActionCardProps {
+interface PrimaryActionProps {
   icon: string;
   title: string;
   description: string;
   onPress: () => void;
 }
 
-const ActionCard = memo(function ActionCard({
+const PrimaryAction = memo(function PrimaryAction({
   icon,
   title,
   description,
   onPress,
-}: ActionCardProps) {
+}: PrimaryActionProps) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
   return (
-    <Animated.View style={animStyle}>
+    <Animated.View style={[animStyle, styles.primaryActionFlex]}>
       <Pressable
         onPress={onPress}
         onPressIn={() => {
@@ -1392,14 +1394,66 @@ const ActionCard = memo(function ActionCard({
         }}
         accessibilityRole="button"
         accessibilityLabel={title}
-        style={styles.actionCard}
+        style={styles.primaryAction}
       >
-        <Text style={styles.actionIcon}>{icon}</Text>
-        <View style={styles.actionText}>
-          <Text style={styles.actionTitle}>{title}</Text>
-          <Text style={styles.actionDesc}>{description}</Text>
+        <View style={styles.primaryActionIconWrap}>
+          <Text style={styles.primaryActionIcon}>{icon}</Text>
         </View>
-        <Text style={styles.actionChevron}>›</Text>
+        <View style={styles.actionText}>
+          <Text style={styles.primaryActionTitle}>{title}</Text>
+          <Text style={styles.primaryActionDesc}>{description}</Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+interface SecondaryActionProps {
+  title: string;
+  onPress: () => void;
+}
+
+// Shutter-ring motif — a plain nested-View camera glyph instead of a text
+// character, so the tap target reads as "camera" at a glance and the inner
+// dot has something to physically compress into on press.
+const SecondaryAction = memo(function SecondaryAction({
+  title,
+  onPress,
+}: SecondaryActionProps) {
+  const scale = useSharedValue(1);
+  const dotScale = useSharedValue(1);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const dotAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: dotScale.value }],
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.97, { damping: 20, stiffness: 300 });
+    dotScale.value = withTiming(0.55, { duration: 90 });
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+    dotScale.value = withSpring(1, { damping: 10, stiffness: 260 });
+  }, []);
+
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        style={styles.secondaryAction}
+      >
+        <View style={styles.shutterRing}>
+          <Animated.View style={[styles.shutterDot, dotAnimStyle]} />
+        </View>
+        <Text style={styles.secondaryActionTitle}>{title}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -1504,31 +1558,80 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   } as TextStyle,
 
-  actionsCol: { gap: Spacing.md } as ViewStyle,
-  actionCard: {
-    backgroundColor: Colors.surface,
+  actionsRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  } as ViewStyle,
+  primaryActionFlex: { flex: 1 } as ViewStyle,
+  primaryAction: {
+    flex: 1,
+    height: 84,
+    backgroundColor: Colors.white,
     borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
   } as ViewStyle,
-  actionIcon: { fontSize: 26, width: 40, textAlign: "center" } as TextStyle,
-  actionText: { flex: 1 } as ViewStyle,
-  actionTitle: {
-    fontSize: Typography.md,
+  primaryActionIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.silver,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  primaryActionIcon: {
+    fontSize: 20,
     fontWeight: Typography.semibold,
-    color: Colors.text,
+    color: Colors.black,
+  } as TextStyle,
+  actionText: { flex: 1 } as ViewStyle,
+  primaryActionTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.black,
     marginBottom: 2,
   } as TextStyle,
-  actionDesc: {
-    fontSize: Typography.sm,
-    color: Colors.textSecondary,
-    lineHeight: 18,
+  primaryActionDesc: {
+    fontSize: Typography.xs,
+    color: Colors.gray,
+    lineHeight: 16,
   } as TextStyle,
-  actionChevron: { fontSize: 24, color: Colors.textMuted } as TextStyle,
+
+  secondaryAction: {
+    width: 84,
+    height: 84,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  } as ViewStyle,
+  shutterRing: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.silver,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  shutterDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.silver,
+  } as ViewStyle,
+  secondaryActionTitle: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.medium,
+    color: Colors.textSecondary,
+    letterSpacing: Typography.widest,
+    textTransform: "uppercase",
+  } as TextStyle,
 
   tagFilterRow: {
     flexDirection: "row",
