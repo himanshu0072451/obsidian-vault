@@ -74,6 +74,8 @@ interface ListHeaderProps {
   onDeleteAlbum: (name: string) => void;
   onTagChipPress: (tag: string) => void;
   onOpenSettings: () => void;
+  viewMode: "list" | "grid";
+  onSetViewMode: (mode: "list" | "grid") => void;
 }
 
 const ListHeader = memo(function ListHeader({
@@ -97,6 +99,8 @@ const ListHeader = memo(function ListHeader({
   onDeleteAlbum,
   onTagChipPress,
   onOpenSettings,
+  viewMode,
+  onSetViewMode,
 }: ListHeaderProps) {
   return (
     <View style={styles.listHeader}>
@@ -214,12 +218,16 @@ const ListHeader = memo(function ListHeader({
       {/* ── Section header ───────────────────────────────────────────────── */}
       <Animated.View entering={FadeInDown.delay(240).duration(400)}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Vault Contents</Text>
-          {visibleFiles.length > 0 && (
-            <Text style={styles.sectionCount}>{visibleFiles.length}</Text>
-          )}
+          <View style={styles.sectionHeaderTop}>
+            <Text style={styles.sectionTitle}>Vault Contents</Text>
+            <View style={styles.sectionRule} />
+            {visibleFiles.length > 0 && (
+              <Text style={styles.sectionCount}>{visibleFiles.length}</Text>
+            )}
+            <ViewModeToggle mode={viewMode} onChange={onSetViewMode} />
+          </View>
           {typeof selectedAlbum === "string" && (
-            <>
+            <View style={styles.sectionAlbumActions}>
               <Pressable
                 onPress={() => onRenameAlbum(selectedAlbum)}
                 style={styles.sectionBtn}
@@ -245,10 +253,76 @@ const ListHeader = memo(function ListHeader({
                   Delete
                 </Text>
               </Pressable>
-            </>
+            </View>
           )}
         </View>
       </Animated.View>
+    </View>
+  );
+});
+
+// ─── ViewModeToggle ─────────────────────────────────────────────────────────
+// Compact segmented control. Icons are built from plain Views (matching the
+// shutter-ring approach used for the Capture action) rather than a text
+// glyph or icon font, so they render identically across devices.
+
+interface ViewModeToggleProps {
+  mode: "list" | "grid";
+  onChange: (mode: "list" | "grid") => void;
+}
+
+const ViewModeToggle = memo(function ViewModeToggle({
+  mode,
+  onChange,
+}: ViewModeToggleProps) {
+  return (
+    <View style={styles.viewToggle}>
+      <Pressable
+        onPress={() => onChange("list")}
+        style={[
+          styles.viewToggleBtn,
+          mode === "list" && styles.viewToggleBtnActive,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="List view"
+        accessibilityState={{ selected: mode === "list" }}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        <View style={styles.listIconCol}>
+          {[0, 1, 2].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.listIconBar,
+                mode === "list" && styles.listIconBarActive,
+              ]}
+            />
+          ))}
+        </View>
+      </Pressable>
+      <Pressable
+        onPress={() => onChange("grid")}
+        style={[
+          styles.viewToggleBtn,
+          mode === "grid" && styles.viewToggleBtnActive,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Grid view"
+        accessibilityState={{ selected: mode === "grid" }}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        <View style={styles.gridIconGrid}>
+          {[0, 1, 2, 3].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.gridIconCell,
+                mode === "grid" && styles.gridIconCellActive,
+              ]}
+            />
+          ))}
+        </View>
+      </Pressable>
     </View>
   );
 });
@@ -286,6 +360,7 @@ export default function HomeScreen({
   } = useVaultOperations();
 
   const [allFiles, setAllFiles] = useState<VaultFile[]>([]);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptingFileName, setDecryptingFileName] = useState<string | null>(
@@ -856,23 +931,34 @@ export default function HomeScreen({
   // and resolves them internally, so memo correctly skips unrelated rows.
 
   const renderVaultFileCard = useCallback(
-    ({ item }: { item: VaultFile }) => (
-      <VaultFileCard
-        file={item}
-        isSelected={selectedUris.has(item.uri)}
-        selectionMode={selectionMode}
-        onPress={handleDecrypt}
-        onLongPress={handleEnterSelection}
-        onToggleSelect={handleToggleSelection}
-        onDelete={handleDelete}
-        onToggleFavorite={handleToggleFavorite}
-        onOpenMoveSheet={handleMoveFile}
-        onOpenTagSheet={handleOpenTagSheet}
-        onOpenDetails={handleOpenDetails}
-        albums={albums}
-      />
-    ),
+    ({ item }: { item: VaultFile }) =>
+      viewMode === "grid" ? (
+        <GridFileCard
+          file={item}
+          isSelected={selectedUris.has(item.uri)}
+          selectionMode={selectionMode}
+          onPress={handleDecrypt}
+          onLongPress={handleEnterSelection}
+          onToggleSelect={handleToggleSelection}
+        />
+      ) : (
+        <VaultFileCard
+          file={item}
+          isSelected={selectedUris.has(item.uri)}
+          selectionMode={selectionMode}
+          onPress={handleDecrypt}
+          onLongPress={handleEnterSelection}
+          onToggleSelect={handleToggleSelection}
+          onDelete={handleDelete}
+          onToggleFavorite={handleToggleFavorite}
+          onOpenMoveSheet={handleMoveFile}
+          onOpenTagSheet={handleOpenTagSheet}
+          onOpenDetails={handleOpenDetails}
+          albums={albums}
+        />
+      ),
     [
+      viewMode,
       selectedUris,
       selectionMode,
       handleDecrypt,
@@ -892,9 +978,11 @@ export default function HomeScreen({
   return (
     <SafeAreaView style={styles.root}>
       <FlashList
+        key={viewMode}
         data={visibleFiles}
         keyExtractor={(item) => item.uri}
-        estimatedItemSize={80}
+        estimatedItemSize={viewMode === "grid" ? 120 : 80}
+        numColumns={viewMode === "grid" ? 3 : 1}
         renderItem={renderVaultFileCard}
         extraData={`${selectionMode}-${selectedUris.size}`}
         // KEY FIX: ListHeaderComponent receives a component (ListHeader),
@@ -924,10 +1012,16 @@ export default function HomeScreen({
             onDeleteAlbum={openDeleteSheet}
             onTagChipPress={handleTagChipPress}
             onOpenSettings={onOpenSettings}
+            viewMode={viewMode}
+            onSetViewMode={setViewMode}
           />
         }
         ListEmptyComponent={<EmptyVault />}
-        ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+        ItemSeparatorComponent={
+          viewMode === "list"
+            ? () => <View style={styles.itemSeparator} />
+            : undefined
+        }
         contentContainerStyle={styles.flashContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -1261,6 +1355,94 @@ const VaultFileCard = memo(function VaultFileCard({
             </View>
           )}
         </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+// ─── GridFileCard ────────────────────────────────────────────────────────────
+// Compact square tile for grid view. Same tap/long-press/select semantics as
+// VaultFileCard (decrypt-preview, enter selection, toggle selection) — the
+// per-file tag/move/delete/details controls aren't shown inline here (no
+// room in a tile this size); they stay reachable by selecting the file and
+// using the existing SelectionActionBar, same as multi-select in list view.
+
+interface GridFileCardProps {
+  file: VaultFile;
+  isSelected: boolean;
+  selectionMode: boolean;
+  onPress: (file: VaultFile) => void;
+  onLongPress: (uri: string) => void;
+  onToggleSelect: (uri: string) => void;
+}
+
+const GridFileCard = memo(function GridFileCard({
+  file,
+  isSelected,
+  selectionMode,
+  onPress,
+  onLongPress,
+  onToggleSelect,
+}: GridFileCardProps) {
+  const scale = useSharedValue(1);
+  const cardAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.96, { damping: 20, stiffness: 300 });
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+  }, []);
+
+  const handleCardPress = useCallback(() => {
+    if (selectionMode) {
+      onToggleSelect(file.uri);
+    } else {
+      onPress(file);
+    }
+  }, [selectionMode, onToggleSelect, onPress, file]);
+
+  const handleCardLongPress = useCallback(() => {
+    if (!selectionMode) onLongPress(file.uri);
+  }, [selectionMode, onLongPress, file.uri]);
+
+  const displayName = file.displayName ?? file.name.replace(".vault", "");
+
+  return (
+    <Animated.View style={[styles.gridTileWrap, cardAnimStyle]}>
+      <Pressable
+        onPress={handleCardPress}
+        onLongPress={handleCardLongPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={`Decrypt and preview ${displayName}`}
+        style={[styles.gridTile, isSelected && styles.gridTileSelected]}
+      >
+        {file.isFavorite && (
+          <View style={styles.gridFavoriteBadge}>
+            <Text style={styles.gridFavoriteIcon}>★</Text>
+          </View>
+        )}
+        {selectionMode && (
+          <View
+            style={[
+              styles.gridCheckbox,
+              isSelected && styles.gridCheckboxSelected,
+            ]}
+          >
+            {isSelected && <Text style={styles.checkboxMark}>✓</Text>}
+          </View>
+        )}
+        <View style={styles.gridIconWrap}>
+          <Text style={styles.fileIconText}>⬡</Text>
+        </View>
+        <Text style={styles.gridFileName} numberOfLines={1}>
+          {displayName}
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -1660,30 +1842,36 @@ const styles = StyleSheet.create({
   } as TextStyle,
 
   sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: Spacing.sm,
     marginBottom: 4,
   } as ViewStyle,
+  sectionHeaderTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  } as ViewStyle,
   sectionTitle: {
-    fontSize: Typography.xs,
+    fontSize: Typography.sm,
     fontWeight: Typography.semibold,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     letterSpacing: Typography.widest,
     textTransform: "uppercase",
   } as TextStyle,
+  sectionRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.border,
+  } as ViewStyle,
   sectionCount: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.bold,
+    fontSize: Typography.sm,
+    fontWeight: Typography.medium,
     color: Colors.textMuted,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.full,
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-    overflow: "hidden",
   } as TextStyle,
+  sectionAlbumActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: Spacing.sm,
+  } as ViewStyle,
   sectionBtn: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
@@ -1700,6 +1888,54 @@ const styles = StyleSheet.create({
     letterSpacing: Typography.wide,
   } as TextStyle,
   sectionBtnTextDestructive: { color: Colors.lightGray } as TextStyle,
+
+  viewToggle: {
+    flexDirection: "row",
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 2,
+    gap: 2,
+  } as ViewStyle,
+  viewToggleBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  viewToggleBtnActive: {
+    backgroundColor: Colors.white,
+  } as ViewStyle,
+  listIconCol: {
+    width: 14,
+    gap: 3,
+  } as ViewStyle,
+  listIconBar: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.textMuted,
+  } as ViewStyle,
+  listIconBarActive: {
+    backgroundColor: Colors.black,
+  } as ViewStyle,
+  gridIconGrid: {
+    width: 14,
+    height: 14,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 2,
+  } as ViewStyle,
+  gridIconCell: {
+    width: 6,
+    height: 6,
+    borderRadius: 1.5,
+    backgroundColor: Colors.textMuted,
+  } as ViewStyle,
+  gridIconCellActive: {
+    backgroundColor: Colors.black,
+  } as ViewStyle,
 
   fileCard: {
     backgroundColor: Colors.surface,
@@ -1764,6 +2000,69 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 3,
   } as TextStyle,
+
+  gridTileWrap: {
+    flex: 1,
+    padding: 4,
+  } as ViewStyle,
+  gridTile: {
+    aspectRatio: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    padding: Spacing.sm,
+  } as ViewStyle,
+  gridTileSelected: {
+    borderColor: Colors.silver,
+    backgroundColor: Colors.midDark,
+  } as ViewStyle,
+  gridIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.midDark,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  gridFileName: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.medium,
+    color: Colors.textSecondary,
+    maxWidth: "100%",
+  } as TextStyle,
+  gridFavoriteBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+  } as ViewStyle,
+  gridFavoriteIcon: {
+    fontSize: 12,
+    color: Colors.silver,
+  } as TextStyle,
+  gridCheckbox: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    width: 20,
+    height: 20,
+    borderRadius: Radius.full,
+    borderWidth: 2,
+    borderColor: Colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.surface,
+  } as ViewStyle,
+  gridCheckboxSelected: {
+    backgroundColor: Colors.silver,
+    borderColor: Colors.silver,
+  } as ViewStyle,
+
   fileTagRow: {
     flexDirection: "row",
     flexWrap: "wrap",
