@@ -244,6 +244,7 @@ export class VaultStorage {
     outPath: string,
     albumName: string | null,
     displayName?: string,
+    hasThumb: boolean = false,
   ): Promise<void> {
     try {
       const info = await FileSystem.getInfoAsync(outPath);
@@ -257,7 +258,7 @@ export class VaultStorage {
         createdAt: Math.floor(
           (info as any).modificationTime ?? Date.now() / 1000,
         ),
-        hasThumb: false,
+        hasThumb,
         displayName,
       };
 

@@ -6,9 +6,20 @@
 import * as FileSystem from "expo-file-system";
 import * as Crypto from "expo-crypto";
 import Aes from "react-native-aes-crypto";
+import * as ImageManipulator from "expo-image-manipulator";
 
 // Encrypted file extension
 export const VAULT_EXTENSION = ".vault";
+// Encrypted thumbnail sidecar extension — mirrors services/storage/types.ts's
+// THUMB_EXTENSION. Kept as a local constant rather than importing from
+// storage/ so this file stays a self-contained "sensitive operations" module.
+const THUMB_EXTENSION = ".thumb";
+
+// Thumbnails are resized before encryption specifically so the grid never
+// needs to decrypt a full-resolution original — keeps decrypt-for-preview
+// cheap and fast regardless of source photo size.
+const THUMB_MAX_DIMENSION = 400;
+const THUMB_JPEG_QUALITY = 0.6;
 
 // PBKDF2 parameters
 const PBKDF2_ITERATIONS = 10000;
@@ -113,6 +124,59 @@ export async function encryptImage(
   await FileSystem.writeAsStringAsync(outPath, payload);
 
   return outPath;
+}
+
+/**
+ * Generate a small preview image from the source, encrypt it with its own
+ * fresh salt/iv, and write it as the `.thumb` sidecar next to the given
+ * vault file path (same basename, extension swapped).
+ *
+ * Best-effort: any failure (manipulation error, disk full, etc.) is
+ * swallowed and reported as `false` — a missing/broken thumbnail must never
+ * block or fail the primary encrypt operation. Callers should fall back to
+ * the existing placeholder icon when this returns `false`.
+ */
+export async function generateEncryptedThumbnail(
+  sourceUri: string,
+  passcode: string,
+  vaultOutPath: string,
+): Promise<boolean> {
+  let resizedUri: string | null = null;
+
+  try {
+    const manipulated = await ImageManipulator.manipulateAsync(
+      sourceUri,
+      [{ resize: { width: THUMB_MAX_DIMENSION } }],
+      {
+        compress: THUMB_JPEG_QUALITY,
+        format: ImageManipulator.SaveFormat.JPEG,
+      },
+    );
+    resizedUri = manipulated.uri;
+
+    const base64Data = await FileSystem.readAsStringAsync(resizedUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const salt = await randomHex(16);
+    const iv = await randomHex(16);
+    const key = await deriveKey(passcode, salt);
+    const cipherText = await Aes.encrypt(base64Data, key, iv, "aes-256-cbc");
+
+    const payload = JSON.stringify({ salt, iv, cipherText });
+    const thumbPath = vaultOutPath.replace(VAULT_EXTENSION, THUMB_EXTENSION);
+    await FileSystem.writeAsStringAsync(thumbPath, payload);
+
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (resizedUri) {
+      await FileSystem.deleteAsync(resizedUri, { idempotent: true }).catch(
+        () => {},
+      );
+    }
+  }
 }
 
 /** Decrypt a .vault file, returns path of restored image. */

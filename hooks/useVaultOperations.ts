@@ -2,7 +2,11 @@ import { useState, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
-import { encryptImage, decryptImage } from "../services/encryption";
+import {
+  encryptImage,
+  decryptImage,
+  generateEncryptedThumbnail,
+} from "../services/encryption";
 import { VAULT_EXTENSION } from "../services/storage";
 import { capturePhoto } from "../services/SecureCameraService";
 import { useVault, useAuth } from "./useAuth";
@@ -147,12 +151,23 @@ export function useVaultOperations() {
 
           // console.log("displayName: " + displayName);
 
+          // Best-effort — a failed/missing thumbnail must never block the
+          // primary encrypt; the grid falls back to the placeholder icon.
+          const hasThumb = await generateEncryptedThumbnail(
+            asset.uri,
+            passcode,
+            outPath,
+          );
+
           // Awaited — must not run concurrently; each call does read→modify→write
-          // on the index and concurrent calls would overwrite each other.
+          // on the index and concurrent calls would overwrite each other. The
+          // thumbnail flag is folded into this same call rather than a second
+          // index write, for the same reason.
           await vault.recordEncryptedFile(
             outPath,
             albumName ?? null,
             displayName,
+            hasThumb,
           );
 
           if (deleteOriginal) {
@@ -276,6 +291,14 @@ export function useVaultOperations() {
         const outDir = await vault.ensureAlbumDir(albumName ?? null);
         const outPath = await encryptImage(tempUri, passcode, outDir);
 
+        // Thumbnail is generated from the temp camera file before it's
+        // deleted — best-effort, never blocks the primary encrypt.
+        const hasThumb = await generateEncryptedThumbnail(
+          tempUri,
+          passcode,
+          outPath,
+        );
+
         // Always delete the temp camera file — it must never persist unencrypted
         await FileSystem.deleteAsync(tempUri, { idempotent: true });
 
@@ -288,6 +311,7 @@ export function useVaultOperations() {
           outPath,
           albumName ?? null,
           cameraDisplayName,
+          hasThumb,
         );
 
         await vault.logActivity({

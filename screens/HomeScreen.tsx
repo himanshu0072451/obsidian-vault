@@ -23,6 +23,8 @@ import { FlashList } from "@shopify/flash-list";
 import Animated, {
   FadeInDown,
   FadeIn,
+  FadeOut,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -36,6 +38,7 @@ import { ProgressOverlay } from "../components/ProgressOverlay";
 import { Card, HeroStat } from "../components/Card";
 import type { VaultFile } from "../services/storage";
 import { decryptImage } from "../services/encryption";
+import { getDecryptedThumb } from "../services/thumbnailCache";
 import * as FileSystem from "expo-file-system";
 import ImageViewer from "../components/ImageViewer";
 import { AlbumFilterBar } from "../components/AlbumFilterBar";
@@ -923,6 +926,30 @@ export default function HomeScreen({
     [visibleFiles],
   );
 
+  // Grid mode groups files into rows of 3 and renders each row as a single
+  // FlashList item (a GridRow). This keeps FlashList single-column at all
+  // times — no numColumns switch, no forced `key` remount — so toggling
+  // List/Grid no longer tears down and remounts ListHeaderComponent (which
+  // was replaying every FadeInDown entrance and resetting scroll position).
+  // Only the item cells themselves change, which lets Reanimated's
+  // entering/exiting/layout transitions morph them smoothly in place.
+  const gridRows = useMemo(() => {
+    const rows: VaultFile[][] = [];
+    for (let i = 0; i < visibleFiles.length; i += 3) {
+      rows.push(visibleFiles.slice(i, i + 3));
+    }
+    return rows;
+  }, [visibleFiles]);
+
+  const flashListData: (VaultFile | VaultFile[])[] =
+    viewMode === "grid" ? gridRows : visibleFiles;
+
+  const flashListKeyExtractor = useCallback(
+    (item: VaultFile | VaultFile[]) =>
+      Array.isArray(item) ? item.map((f) => f.uri).join("|") : item.uri,
+    [],
+  );
+
   // ─── Stable renderItem ────────────────────────────────────────────────────
   // Defined as useCallback, not an inline arrow in JSX. Inline arrows
   // recreate onPress/onDelete/etc. closures every render, defeating
@@ -931,11 +958,11 @@ export default function HomeScreen({
   // and resolves them internally, so memo correctly skips unrelated rows.
 
   const renderVaultFileCard = useCallback(
-    ({ item }: { item: VaultFile }) =>
-      viewMode === "grid" ? (
-        <GridFileCard
-          file={item}
-          isSelected={selectedUris.has(item.uri)}
+    ({ item }: { item: VaultFile | VaultFile[] }) =>
+      Array.isArray(item) ? (
+        <GridRow
+          files={item}
+          selectedUris={selectedUris}
           selectionMode={selectionMode}
           onPress={handleDecrypt}
           onLongPress={handleEnterSelection}
@@ -958,7 +985,6 @@ export default function HomeScreen({
         />
       ),
     [
-      viewMode,
       selectedUris,
       selectionMode,
       handleDecrypt,
@@ -978,11 +1004,9 @@ export default function HomeScreen({
   return (
     <SafeAreaView style={styles.root}>
       <FlashList
-        key={viewMode}
-        data={visibleFiles}
-        keyExtractor={(item) => item.uri}
+        data={flashListData}
+        keyExtractor={flashListKeyExtractor}
         estimatedItemSize={viewMode === "grid" ? 120 : 80}
-        numColumns={viewMode === "grid" ? 3 : 1}
         renderItem={renderVaultFileCard}
         extraData={`${selectionMode}-${selectedUris.size}`}
         // KEY FIX: ListHeaderComponent receives a component (ListHeader),
@@ -1204,8 +1228,8 @@ const VaultFileCard = memo(function VaultFileCard({
 
   const handleStarPress = useCallback(() => {
     starScale.value = withSequence(
-      withSpring(1.3, { damping: 12, stiffness: 300 }),
-      withSpring(1, { damping: 15, stiffness: 300 }),
+      withSpring(1.15, { damping: 14, stiffness: 300 }),
+      withSpring(1, { damping: 16, stiffness: 300 }),
     );
     onToggleFavorite(file);
   }, [onToggleFavorite, file]);
@@ -1225,7 +1249,12 @@ const VaultFileCard = memo(function VaultFileCard({
   const hasMoveOptions = albums.length > 0 || file.album !== null;
 
   return (
-    <Animated.View style={cardAnimStyle}>
+    <Animated.View
+      style={cardAnimStyle}
+      layout={LinearTransition.duration(220)}
+      entering={FadeIn.duration(180)}
+      exiting={FadeOut.duration(140)}
+    >
       <Pressable
         onPress={handleCardPress}
         onLongPress={handleCardLongPress}
@@ -1240,7 +1269,14 @@ const VaultFileCard = memo(function VaultFileCard({
               <View
                 style={[styles.checkbox, isSelected && styles.checkboxSelected]}
               >
-                {isSelected && <Text style={styles.checkboxMark}>✓</Text>}
+                {isSelected && (
+                  <Animated.Text
+                    entering={FadeIn.duration(120)}
+                    style={styles.checkboxMark}
+                  >
+                    ✓
+                  </Animated.Text>
+                )}
               </View>
             ) : (
               <View style={styles.fileIconWrap}>
@@ -1251,7 +1287,13 @@ const VaultFileCard = memo(function VaultFileCard({
               <Text style={styles.fileName} numberOfLines={1}>
                 {file.displayName ?? file.name.replace(".vault", "")}
               </Text>
-              <Text style={styles.fileDetail}>
+              <Text style={styles.fileDetail} numberOfLines={1}>
+                {file.album && (
+                  <Text style={styles.fileAlbumLabel}>
+                    {file.album}
+                    {"  ·  "}
+                  </Text>
+                )}
                 {formatFileSize(file.size)}
                 {"  ·  "}
                 {formatRelativeTime(file.createdAt * 1000)}
@@ -1384,9 +1426,45 @@ const GridFileCard = memo(function GridFileCard({
   onLongPress,
   onToggleSelect,
 }: GridFileCardProps) {
+  const { passcode } = useAuth();
+  const [thumbUri, setThumbUri] = useState<string | null>(null);
   const scale = useSharedValue(1);
+  const thumbOpacity = useSharedValue(0);
+
+  // Lazy thumbnail load: FlashList only mounts cells near the viewport, so
+  // "on mount" already approximates "when visible." Best-effort — a failed
+  // or missing thumbnail just leaves the placeholder icon showing.
+  useEffect(() => {
+    let cancelled = false;
+    thumbOpacity.value = 0;
+    setThumbUri(null);
+
+    if (file.thumbUri) {
+      getDecryptedThumb(file, passcode).then((uri) => {
+        if (!cancelled && uri) setThumbUri(uri);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [file.uri, file.thumbUri, passcode]);
+
+  const handleThumbLoad = useCallback(() => {
+    thumbOpacity.value = withTiming(1, { duration: 180 });
+  }, []);
+
+  const thumbAnimStyle = useAnimatedStyle(() => ({
+    opacity: thumbOpacity.value,
+  }));
+
+  // Unselected tiles dim while selection mode is active, so the selected
+  // set pops without needing a heavier border treatment.
   const cardAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+    opacity: withTiming(selectionMode && !isSelected ? 0.55 : 1, {
+      duration: 150,
+    }),
   }));
 
   const handlePressIn = useCallback(() => {
@@ -1412,7 +1490,12 @@ const GridFileCard = memo(function GridFileCard({
   const displayName = file.displayName ?? file.name.replace(".vault", "");
 
   return (
-    <Animated.View style={[styles.gridTileWrap, cardAnimStyle]}>
+    <Animated.View
+      style={[styles.gridTileWrap, cardAnimStyle]}
+      layout={LinearTransition.duration(220)}
+      entering={FadeIn.duration(180)}
+      exiting={FadeOut.duration(140)}
+    >
       <Pressable
         onPress={handleCardPress}
         onLongPress={handleCardLongPress}
@@ -1422,6 +1505,14 @@ const GridFileCard = memo(function GridFileCard({
         accessibilityLabel={`Decrypt and preview ${displayName}`}
         style={[styles.gridTile, isSelected && styles.gridTileSelected]}
       >
+        {thumbUri && (
+          <Animated.Image
+            source={{ uri: thumbUri }}
+            style={[StyleSheet.absoluteFill, styles.gridThumbImage, thumbAnimStyle]}
+            resizeMode="cover"
+            onLoad={handleThumbLoad}
+          />
+        )}
         {file.isFavorite && (
           <View style={styles.gridFavoriteBadge}>
             <Text style={styles.gridFavoriteIcon}>★</Text>
@@ -1434,17 +1525,66 @@ const GridFileCard = memo(function GridFileCard({
               isSelected && styles.gridCheckboxSelected,
             ]}
           >
-            {isSelected && <Text style={styles.checkboxMark}>✓</Text>}
+            {isSelected && (
+              <Animated.Text
+                entering={FadeIn.duration(120)}
+                style={styles.checkboxMark}
+              >
+                ✓
+              </Animated.Text>
+            )}
           </View>
         )}
         <View style={styles.gridIconWrap}>
-          <Text style={styles.fileIconText}>⬡</Text>
+          <Text style={styles.gridIconText}>⬡</Text>
         </View>
         <Text style={styles.gridFileName} numberOfLines={1}>
           {displayName}
         </Text>
       </Pressable>
     </Animated.View>
+  );
+});
+
+// ─── GridRow ─────────────────────────────────────────────────────────────────
+// One FlashList item in grid mode: up to 3 GridFileCards side by side.
+// Trailing spacer views keep a partial last row left-aligned instead of
+// the final tile stretching to fill the row.
+
+interface GridRowProps {
+  files: VaultFile[];
+  selectedUris: Set<string>;
+  selectionMode: boolean;
+  onPress: (file: VaultFile) => void;
+  onLongPress: (uri: string) => void;
+  onToggleSelect: (uri: string) => void;
+}
+
+const GridRow = memo(function GridRow({
+  files,
+  selectedUris,
+  selectionMode,
+  onPress,
+  onLongPress,
+  onToggleSelect,
+}: GridRowProps) {
+  return (
+    <View style={styles.gridRow}>
+      {files.map((file) => (
+        <GridFileCard
+          key={file.uri}
+          file={file}
+          isSelected={selectedUris.has(file.uri)}
+          selectionMode={selectionMode}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          onToggleSelect={onToggleSelect}
+        />
+      ))}
+      {Array.from({ length: 3 - files.length }).map((_, i) => (
+        <View key={`spacer-${i}`} style={styles.gridTileWrap} />
+      ))}
+    </View>
   );
 });
 
@@ -1939,9 +2079,9 @@ const styles = StyleSheet.create({
 
   fileCard: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: "transparent",
     padding: Spacing.md,
     flexDirection: "row",
     alignItems: "center",
@@ -1980,83 +2120,99 @@ const styles = StyleSheet.create({
   fileIconWrap: {
     width: 40,
     height: 40,
-    borderRadius: Radius.md,
+    borderRadius: Radius.full,
     backgroundColor: Colors.midDark,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   } as ViewStyle,
-  fileIconText: { fontSize: 18, color: Colors.textMuted } as TextStyle,
+  fileIconText: { fontSize: 17, color: Colors.silver } as TextStyle,
   fileMeta: { flex: 1, minWidth: 0 } as ViewStyle,
   fileName: {
-    fontSize: Typography.sm,
+    fontSize: Typography.base,
     fontWeight: Typography.semibold,
     color: Colors.text,
+    letterSpacing: Typography.tight,
   } as TextStyle,
   fileDetail: {
     fontSize: Typography.xs,
+    color: Colors.textMuted,
+    marginTop: 4,
+  } as TextStyle,
+  fileAlbumLabel: {
     color: Colors.textSecondary,
-    marginTop: 3,
+    fontWeight: Typography.medium,
   } as TextStyle,
 
+  gridRow: {
+    flexDirection: "row",
+  } as ViewStyle,
   gridTileWrap: {
     flex: 1,
-    padding: 4,
+    padding: 6,
   } as ViewStyle,
   gridTile: {
     aspectRatio: 1,
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.xs,
-    padding: Spacing.sm,
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    overflow: "hidden",
+  } as ViewStyle,
+  gridThumbImage: {
+    borderRadius: Radius.md,
   } as ViewStyle,
   gridTileSelected: {
     borderColor: Colors.silver,
     backgroundColor: Colors.midDark,
   } as ViewStyle,
   gridIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
+    width: 48,
+    height: 48,
+    borderRadius: Radius.full,
     backgroundColor: Colors.midDark,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
+  gridIconText: { fontSize: 20, color: Colors.silver } as TextStyle,
   gridFileName: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.medium,
-    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: Colors.text,
+    letterSpacing: Typography.tight,
     maxWidth: "100%",
   } as TextStyle,
   gridFavoriteBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.midDark,
+    alignItems: "center",
+    justifyContent: "center",
   } as ViewStyle,
   gridFavoriteIcon: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.silver,
   } as TextStyle,
   gridCheckbox: {
     position: "absolute",
-    top: 6,
-    left: 6,
+    top: 8,
+    left: 8,
     width: 20,
     height: 20,
     borderRadius: Radius.full,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: Colors.borderLight,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.midDark,
   } as ViewStyle,
   gridCheckboxSelected: {
     backgroundColor: Colors.silver,
@@ -2074,8 +2230,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: Radius.full,
     backgroundColor: Colors.midDark,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
     maxWidth: 100,
   } as ViewStyle,
   fileTagChipText: {
@@ -2085,7 +2239,7 @@ const styles = StyleSheet.create({
   fileActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     flexShrink: 0,
     paddingLeft: Spacing.sm,
   } as ViewStyle,
@@ -2094,8 +2248,6 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: Radius.full,
     backgroundColor: Colors.midDark,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
@@ -2109,8 +2261,6 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: Radius.full,
     backgroundColor: Colors.midDark,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
@@ -2125,13 +2275,11 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: Radius.full,
     backgroundColor: Colors.midDark,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
   tagBtnActive: {
-    borderColor: Colors.silver,
+    backgroundColor: Colors.gray,
   } as ViewStyle,
   tagBtnIcon: {
     fontSize: 14,

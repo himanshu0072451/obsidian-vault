@@ -20,6 +20,7 @@
     "expo-dev-client": "~5.0.20",
     "expo-document-picker": "~13.0.3",
     "expo-file-system": "~18.0.0",
+    "expo-image-manipulator": "~13.0.6",
     "expo-image-picker": "~16.0.0",
     "expo-local-authentication": "~15.0.2",
     "expo-media-library": "~17.0.6",

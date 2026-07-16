@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   Pressable,
   ViewStyle,
   TextStyle,
-} from 'react-native';
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -15,13 +15,13 @@ import Animated, {
   withTiming,
   withSpring,
   FadeIn,
-} from 'react-native-reanimated';
-import { PasscodeInput } from '../components/PasscodeInput';
-import { Colors, Typography, Spacing, Radius } from '../utils/design';
-import { useAuth } from '../hooks/useAuth';
+} from "react-native-reanimated";
+import { PasscodeInput } from "../components/PasscodeInput";
+import { Colors, Typography, Spacing, Radius } from "../utils/design";
+import { useAuth } from "../hooks/useAuth";
 
 // 'biometric' = post-setup offer screen
-type LockStep = 'enter' | 'setup' | 'confirm' | 'biometric';
+type LockStep = "enter" | "setup" | "confirm" | "biometric";
 
 export default function LockScreen() {
   const {
@@ -33,9 +33,9 @@ export default function LockScreen() {
     unlockWithBiometrics,
     enableBiometrics,
   } = useAuth();
-  const [step, setStep] = useState<LockStep>(isSetup ? 'enter' : 'setup');
-  const [firstCode, setFirstCode] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [step, setStep] = useState<LockStep>(isSetup ? "enter" : "setup");
+  const [firstCode, setFirstCode] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const logoScale = useSharedValue(1);
   const errorOpacity = useSharedValue(0);
@@ -45,36 +45,36 @@ export default function LockScreen() {
     errorOpacity.value = withSequence(
       withTiming(1, { duration: 150 }),
       withTiming(1, { duration: 1500 }),
-      withTiming(0, { duration: 300 })
+      withTiming(0, { duration: 300 }),
     );
   }, []);
 
   const handleSetup = useCallback(
     async (code: string) => {
-      if (step === 'setup') {
+      if (step === "setup") {
         setFirstCode(code);
-        setStep('confirm');
+        setStep("confirm");
         return;
       }
       // Confirm step
       if (code !== firstCode) {
-        showError('Passcodes do not match');
-        setStep('setup');
-        setFirstCode('');
+        showError("Passcodes do not match");
+        setStep("setup");
+        setFirstCode("");
         return;
       }
       logoScale.value = withSpring(1.05, { damping: 10 }, () => {
         logoScale.value = withSpring(1);
       });
       await setup(code);
-      // Offer biometrics if hardware is available — App.tsx will transition
+      // Offer biometrics if hardware is available ΓÇö App.tsx will transition
       // to HomeScreen automatically once isUnlocked becomes true, so this
       // step only renders briefly if the user taps "Enable"
       if (biometricAvailability?.supported && biometricAvailability.enrolled) {
-        setStep('biometric');
+        setStep("biometric");
       }
     },
-    [step, firstCode, setup, showError, biometricAvailability]
+    [step, firstCode, setup, showError, biometricAvailability],
   );
 
   const handleBiometricUnlock = useCallback(async () => {
@@ -84,27 +84,32 @@ export default function LockScreen() {
         logoScale.value = withSpring(1);
       });
     }
-    // If null: user cancelled — stay on LockScreen silently
+    // If null: user cancelled ΓÇö stay on LockScreen silently
   }, [unlockWithBiometrics]);
 
   // Auto-trigger biometrics on mount when enabled + enrolled
   useEffect(() => {
-    if (step !== 'enter' || !biometricEnabled || !biometricAvailability?.enrolled) return;
+    if (
+      step !== "enter" ||
+      !biometricEnabled ||
+      !biometricAvailability?.enrolled
+    )
+      return;
     const t = setTimeout(handleBiometricUnlock, 400);
     return () => clearTimeout(t);
-  // Intentionally runs once on mount only
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally runs once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleUnlock = useCallback(
     async (code: string) => {
       const result = await unlock(code);
       if (!result) {
-        showError('Incorrect passcode');
+        showError("Incorrect passcode");
         logoScale.value = withSequence(
           withTiming(0.95, { duration: 80 }),
           withTiming(1.02, { duration: 80 }),
-          withTiming(1, { duration: 80 })
+          withTiming(1, { duration: 80 }),
         );
       } else {
         logoScale.value = withSpring(1.08, { damping: 10 }, () => {
@@ -113,7 +118,7 @@ export default function LockScreen() {
         // App.tsx handles the biometric offer after isUnlocked becomes true
       }
     },
-    [unlock, showError]
+    [unlock, showError],
   );
 
   const logoStyle = useAnimatedStyle(() => ({
@@ -124,19 +129,25 @@ export default function LockScreen() {
     opacity: errorOpacity.value,
   }));
 
-  const bioLabel = biometricAvailability?.label ?? 'Biometrics';
+  const bioLabel = biometricAvailability?.label ?? "Biometrics";
 
   const label =
-    step === 'enter'    ? 'Enter Passcode'   :
-    step === 'setup'    ? 'Create Passcode'  :
-    step === 'confirm'  ? 'Confirm Passcode' :
-    /* biometric */       `Enable ${bioLabel}?`;
+    step === "enter"
+      ? "Enter Passcode"
+      : step === "setup"
+        ? "Create Passcode"
+        : step === "confirm"
+          ? "Confirm Passcode"
+          : /* biometric */ `Enable ${bioLabel}?`;
 
   const sublabel =
-    step === 'setup'   ? '6-digit code'       :
-    step === 'confirm' ? 'Re-enter to confirm' :
-    step === 'biometric' ? `Use ${bioLabel} to unlock instead of your passcode` :
-    undefined;
+    step === "setup"
+      ? "6-digit code"
+      : step === "confirm"
+        ? "Re-enter to confirm"
+        : step === "biometric"
+          ? `Use ${bioLabel} to unlock instead of your passcode`
+          : undefined;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -144,27 +155,27 @@ export default function LockScreen() {
         {/* Logo */}
         <Animated.View style={[styles.logoArea, logoStyle]}>
           <View style={styles.logoMark}>
-            <Text style={styles.logoIcon}>⬡</Text>
+            <Text style={styles.logoIcon}>Γ¼í</Text>
           </View>
           <Text style={styles.appName}>IMAGE VAULT</Text>
           <Text style={styles.tagline}>
-            {isSetup ? 'Secured' : 'Setup required'}
+            {isSetup ? "Secured" : "Setup required"}
           </Text>
         </Animated.View>
 
-        {/* Passcode input — hidden during biometric offer */}
-        {step !== 'biometric' && (
+        {/* Passcode input ΓÇö hidden during biometric offer */}
+        {step !== "biometric" && (
           <View style={styles.inputArea}>
             <PasscodeInput
               label={label}
               sublabel={sublabel}
-              onComplete={step === 'enter' ? handleUnlock : handleSetup}
+              onComplete={step === "enter" ? handleUnlock : handleSetup}
             />
           </View>
         )}
 
-        {/* Biometric offer — shown immediately after passcode setup */}
-        {step === 'biometric' && (
+        {/* Biometric offer ΓÇö shown immediately after passcode setup */}
+        {step === "biometric" && (
           <View style={styles.biometricOffer}>
             <Text style={styles.biometricTitle}>{`Enable ${bioLabel}?`}</Text>
             <Text style={styles.biometricSubtitle}>
@@ -178,14 +189,16 @@ export default function LockScreen() {
               }}
               accessibilityRole="button"
             >
-              <Text style={styles.biometricEnableBtnText}>{`Enable ${bioLabel}`}</Text>
+              <Text
+                style={styles.biometricEnableBtnText}
+              >{`Enable ${bioLabel}`}</Text>
             </Pressable>
             <Pressable
               style={styles.biometricSkipBtn}
               onPress={() => {
-                // Return to enter step — isUnlocked is already true so
+                // Return to enter step ΓÇö isUnlocked is already true so
                 // App.tsx will immediately transition to HomeScreen
-                setStep('enter');
+                setStep("enter");
               }}
               accessibilityRole="button"
             >
@@ -194,17 +207,19 @@ export default function LockScreen() {
           </View>
         )}
 
-        {/* Biometric unlock button — shown on enter step when enrolled + enabled */}
-        {step === 'enter' && biometricEnabled && biometricAvailability?.enrolled && (
-          <Pressable
-            style={styles.biometricBtn}
-            onPress={handleBiometricUnlock}
-            accessibilityRole="button"
-            accessibilityLabel={`Unlock with ${bioLabel}`}
-          >
-            <Text style={styles.biometricBtnText}>{`Use ${bioLabel}`}</Text>
-          </Pressable>
-        )}
+        {/* Biometric unlock button ΓÇö shown on enter step when enrolled + enabled */}
+        {step === "enter" &&
+          biometricEnabled &&
+          biometricAvailability?.enrolled && (
+            <Pressable
+              style={styles.biometricBtn}
+              onPress={handleBiometricUnlock}
+              accessibilityRole="button"
+              accessibilityLabel={`Unlock with ${bioLabel}`}
+            >
+              <Text style={styles.biometricBtnText}>{`Use ${bioLabel}`}</Text>
+            </Pressable>
+          )}
 
         {/* Error message */}
         <Animated.Text style={[styles.error, errorStyle]}>
@@ -222,14 +237,14 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   inner: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing['2xl'],
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing["2xl"],
     paddingHorizontal: Spacing.xl,
   } as ViewStyle,
   logoArea: {
-    alignItems: 'center',
-    marginTop: Spacing['2xl'],
+    alignItems: "center",
+    marginTop: Spacing["2xl"],
   },
   logoMark: {
     width: 72,
@@ -238,8 +253,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.md,
   },
   logoIcon: {
@@ -257,11 +272,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     color: Colors.textMuted,
     letterSpacing: Typography.wider,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   inputArea: {
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
   error: {
     fontSize: Typography.sm,
@@ -270,10 +285,10 @@ const styles = StyleSheet.create({
     height: 20,
   },
 
-  // ── Biometric offer (post-setup) ─────────────────────────────────────────
+  // ΓöÇΓöÇ Biometric offer (post-setup) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   biometricOffer: {
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
     gap: Spacing.lg,
     paddingHorizontal: Spacing.md,
   } as ViewStyle,
@@ -281,23 +296,23 @@ const styles = StyleSheet.create({
     fontSize: Typography.xl,
     fontWeight: Typography.bold,
     color: Colors.text,
-    textAlign: 'center',
+    textAlign: "center",
     letterSpacing: Typography.tight,
   } as TextStyle,
   biometricSubtitle: {
     fontSize: Typography.sm,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
     maxWidth: 260,
   } as TextStyle,
   biometricEnableBtn: {
-    width: '100%',
+    width: "100%",
     height: 56,
     borderRadius: Radius.lg,
     backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   } as ViewStyle,
   biometricEnableBtnText: {
     fontSize: Typography.base,
@@ -315,10 +330,10 @@ const styles = StyleSheet.create({
     letterSpacing: Typography.wide,
   } as TextStyle,
 
-  // ── Biometric unlock button (enter step) ─────────────────────────────────
+  // ΓöÇΓöÇ Biometric unlock button (enter step) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   biometricBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,

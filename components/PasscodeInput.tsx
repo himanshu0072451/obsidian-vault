@@ -1,32 +1,31 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Vibration,
-} from 'react-native';
+import React, { useState, useCallback, useEffect } from "react";
+import { View, Text, Pressable, StyleSheet, Vibration } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withTiming,
   withSpring,
-} from 'react-native-reanimated';
-import { Colors, Typography, Spacing, Radius } from '../utils/design';
+} from "react-native-reanimated";
+import { Colors, Typography, Spacing, Radius } from "../utils/design";
 
 const MAX_LENGTH = 6;
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
+const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "Γî½"];
 
 interface PasscodeInputProps {
   onComplete: (passcode: string) => void;
-  onError?: () => void;  // Called to trigger shake
+  onError?: () => void; // Called to trigger shake
   label?: string;
   sublabel?: string;
 }
 
-export function PasscodeInput({ onComplete, onError, label, sublabel }: PasscodeInputProps) {
-  const [code, setCode] = useState('');
+export function PasscodeInput({
+  onComplete,
+  onError,
+  label,
+  sublabel,
+}: PasscodeInputProps) {
+  const [code, setCode] = useState("");
   const shakeX = useSharedValue(0);
   const dotsOpacity = useSharedValue(1);
 
@@ -47,18 +46,18 @@ export function PasscodeInput({ onComplete, onError, label, sublabel }: Passcode
       withTiming(12, { duration: 60 }),
       withTiming(-8, { duration: 60 }),
       withTiming(8, { duration: 60 }),
-      withTiming(0, { duration: 60 })
+      withTiming(0, { duration: 60 }),
     );
     Vibration.vibrate(200);
   }, []);
 
   const handleKey = useCallback(
     (key: string) => {
-      if (key === '⌫') {
+      if (key === "Γî½") {
         setCode((prev) => prev.slice(0, -1));
         return;
       }
-      if (key === '') return;
+      if (key === "") return;
 
       const next = code + key;
       setCode(next);
@@ -66,10 +65,10 @@ export function PasscodeInput({ onComplete, onError, label, sublabel }: Passcode
       if (next.length === MAX_LENGTH) {
         onComplete(next);
         // Reset after a brief delay
-        setTimeout(() => setCode(''), 600);
+        setTimeout(() => setCode(""), 600);
       }
     },
-    [code, onComplete]
+    [code, onComplete],
   );
 
   return (
@@ -90,11 +89,7 @@ export function PasscodeInput({ onComplete, onError, label, sublabel }: Passcode
       {/* Keypad */}
       <View style={styles.keypad}>
         {KEYS.map((key, idx) => (
-          <KeyButton
-            key={idx}
-            value={key}
-            onPress={() => handleKey(key)}
-          />
+          <KeyButton key={idx} value={key} onPress={() => handleKey(key)} />
         ))}
       </View>
     </View>
@@ -107,33 +102,37 @@ function KeyButton({ value, onPress }: { value: string; onPress: () => void }) {
     transform: [{ scale: scale.value }],
   }));
 
-  if (value === '') {
+  if (value === "") {
     return <View style={styles.keyPlaceholder} />;
   }
 
   return (
     <Animated.View style={animStyle}>
       <Pressable
-        onPressIn={() => { scale.value = withSpring(0.88, { damping: 15, stiffness: 300 }); }}
-        onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 300 }); }}
+        onPressIn={() => {
+          scale.value = withSpring(0.88, { damping: 15, stiffness: 300 });
+        }}
+        onPressOut={() => {
+          scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+        }}
         onPress={onPress}
         style={styles.key}
       >
-        <Text style={value === '⌫' ? styles.backspace : styles.keyText}>
+        <Text style={value === "Γî½" ? styles.backspace : styles.keyText}>
           {value}
         </Text>
       </Pressable>
     </Animated.View>
   );
-}
+} 
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
-    width: '100%',
+    alignItems: "center",
+    width: "100%",
   },
   label: {
-    fontSize: Typography['2xl'],
+    fontSize: Typography["2xl"],
     fontWeight: Typography.bold,
     color: Colors.text,
     marginBottom: Spacing.sm,
@@ -142,14 +141,14 @@ const styles = StyleSheet.create({
   sublabel: {
     fontSize: Typography.sm,
     color: Colors.textSecondary,
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing["2xl"],
     letterSpacing: Typography.wide,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   dots: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 16,
-    marginBottom: Spacing['3xl'],
+    marginBottom: Spacing["3xl"],
   },
   dot: {
     width: 14,
@@ -157,26 +156,26 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1.5,
     borderColor: Colors.gray,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   dotFilled: {
     backgroundColor: Colors.white,
     borderColor: Colors.white,
   },
   keypad: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     width: 280,
     gap: 12,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   key: {
     width: 80,
     height: 80,
     borderRadius: Radius.xl,
     backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: Colors.border,
   },

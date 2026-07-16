@@ -20,6 +20,7 @@ import { AppState, AppStateStatus } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { realVault, decoyVault, VaultStorage } from "../services/storage";
 import type { VaultContext } from "../services/storage";
+import { purgeThumbnailCache } from "../services/thumbnailCache";
 import {
   isBiometricEnabled,
   getPasscodeWithBiometrics,
@@ -123,6 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Bootstrap: check which vaults have passcodes configured + biometric state
   useEffect(() => {
+    // Defensive: clear any decrypted thumbnails left behind by a previous
+    // session that crashed or was force-killed before it could clean up.
+    purgeThumbnailCache().catch(() => {});
+
     Promise.all([
       realVault.hasPasscode(),
       decoyVault.hasPasscode(),
@@ -143,6 +148,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const unlock = useCallback(
     async (code: string): Promise<VaultContext | null> => {
+      // Clear any thumbnails decrypted under a previous vault context before
+      // establishing this one — real/decoy vaults must never share cache.
+      await purgeThumbnailCache().catch(() => {});
+
       // Real vault takes priority
       if (await realVault.verifyPasscode(code)) {
         setPasscode(code);
@@ -233,6 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveVault(null);
     setIsUnlocked(false);
     isUnlockedRef.current = false;
+    purgeThumbnailCache().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -252,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setActiveVault(null);
         setIsUnlocked(false);
         isUnlockedRef.current = false;
+        purgeThumbnailCache().catch(() => {});
       }
     });
     return () => sub.remove();
