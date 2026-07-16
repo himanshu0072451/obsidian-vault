@@ -1249,17 +1249,23 @@ const VaultFileCard = memo(function VaultFileCard({
   const hasMoveOptions = albums.length > 0 || file.album !== null;
 
   return (
-    <Animated.View
-      style={cardAnimStyle}
-      layout={LinearTransition.duration(220)}
-      entering={FadeIn.duration(180)}
-      exiting={FadeOut.duration(140)}
-    >
-      <Pressable
-        onPress={handleCardPress}
-        onLongPress={handleCardLongPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+    // Layout transition lives on this outer wrapper only. The opacity-
+    // affecting animations (entering/exiting fade, cardAnimStyle's press
+    // scale) live on the inner wrapper below — putting both on one
+    // Animated.View triggers Reanimated's "opacity may be overwritten by a
+    // layout animation" warning, since a layout transition can reset styles
+    // on the same component mid-animation.
+    <Animated.View layout={LinearTransition.duration(220)}>
+      <Animated.View
+        style={cardAnimStyle}
+        entering={FadeIn.duration(180)}
+        exiting={FadeOut.duration(140)}
+      >
+        <Pressable
+          onPress={handleCardPress}
+          onLongPress={handleCardLongPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
         accessibilityRole="button"
         accessibilityLabel={`Decrypt and preview ${file.displayName ?? file.name.replace(".vault", "")}`}
       >
@@ -1397,7 +1403,8 @@ const VaultFileCard = memo(function VaultFileCard({
             </View>
           )}
         </View>
-      </Pressable>
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 });
@@ -1457,6 +1464,11 @@ const GridFileCard = memo(function GridFileCard({
   const thumbAnimStyle = useAnimatedStyle(() => ({
     opacity: thumbOpacity.value,
   }));
+  // Icon placeholder cross-fades out as the blurred thumbnail fades in —
+  // same shared value, inverse opacity, so the two are always in sync.
+  const iconAnimStyle = useAnimatedStyle(() => ({
+    opacity: 1 - thumbOpacity.value,
+  }));
 
   // Unselected tiles dim while selection mode is active, so the selected
   // set pops without needing a heavier border treatment.
@@ -1490,12 +1502,19 @@ const GridFileCard = memo(function GridFileCard({
   const displayName = file.displayName ?? file.name.replace(".vault", "");
 
   return (
-    <Animated.View
-      style={[styles.gridTileWrap, cardAnimStyle]}
-      layout={LinearTransition.duration(220)}
-      entering={FadeIn.duration(180)}
-      exiting={FadeOut.duration(140)}
-    >
+    // Three separate nodes, one mechanism each — layout, entering/exiting,
+    // and cardAnimStyle's custom opacity/transform are each "layout
+    // animation family" features in Reanimated, and colocating any two of
+    // them on the same node triggers the "opacity may be overwritten"
+    // warning. cardAnimStyle sets a custom `opacity` (selection dim), so it
+    // cannot share a node with entering/exiting either — hence three layers
+    // instead of VaultFileCard's two (whose cardAnimStyle has no opacity).
+    <Animated.View style={styles.gridTileWrap} layout={LinearTransition.duration(220)}>
+      <Animated.View
+        entering={FadeIn.duration(180)}
+        exiting={FadeOut.duration(140)}
+      >
+      <Animated.View style={cardAnimStyle}>
       <Pressable
         onPress={handleCardPress}
         onLongPress={handleCardLongPress}
@@ -1505,14 +1524,33 @@ const GridFileCard = memo(function GridFileCard({
         accessibilityLabel={`Decrypt and preview ${displayName}`}
         style={[styles.gridTile, isSelected && styles.gridTileSelected]}
       >
-        {thumbUri && (
-          <Animated.Image
-            source={{ uri: thumbUri }}
-            style={[StyleSheet.absoluteFill, styles.gridThumbImage, thumbAnimStyle]}
-            resizeMode="cover"
-            onLoad={handleThumbLoad}
-          />
-        )}
+        {/* Image region — ~75% of the tile. Icon placeholder and blurred
+            thumbnail occupy the same space and cross-fade via inverse
+            opacity on one shared value. */}
+        <View style={styles.gridImageArea}>
+          <Animated.View style={[styles.gridIconWrap, iconAnimStyle]}>
+            <Text style={styles.gridIconText}>⬡</Text>
+          </Animated.View>
+          {thumbUri && (
+            <Animated.Image
+              source={{ uri: thumbUri }}
+              style={[StyleSheet.absoluteFill, thumbAnimStyle]}
+              resizeMode="cover"
+              blurRadius={13}
+              onLoad={handleThumbLoad}
+            />
+          )}
+        </View>
+
+        {/* Caption band — ~25% of the tile, dark scrim behind the filename
+            for readability regardless of what's under it. */}
+        <View style={styles.gridCaptionBand}>
+          <Text style={styles.gridFileName} numberOfLines={1}>
+            {displayName}
+          </Text>
+        </View>
+
+        {/* Badges float above both regions. */}
         {file.isFavorite && (
           <View style={styles.gridFavoriteBadge}>
             <Text style={styles.gridFavoriteIcon}>★</Text>
@@ -1535,13 +1573,9 @@ const GridFileCard = memo(function GridFileCard({
             )}
           </View>
         )}
-        <View style={styles.gridIconWrap}>
-          <Text style={styles.gridIconText}>⬡</Text>
-        </View>
-        <Text style={styles.gridFileName} numberOfLines={1}>
-          {displayName}
-        </Text>
       </Pressable>
+      </Animated.View>
+      </Animated.View>
     </Animated.View>
   );
 });
@@ -2157,28 +2191,35 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: "transparent",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    padding: Spacing.md,
     overflow: "hidden",
-  } as ViewStyle,
-  gridThumbImage: {
-    borderRadius: Radius.md,
   } as ViewStyle,
   gridTileSelected: {
     borderColor: Colors.silver,
     backgroundColor: Colors.midDark,
   } as ViewStyle,
+  gridImageArea: {
+    flex: 3,
+    width: "100%",
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  gridCaptionBand: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  } as ViewStyle,
   gridIconWrap: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: Radius.full,
     backgroundColor: Colors.midDark,
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
-  gridIconText: { fontSize: 20, color: Colors.silver } as TextStyle,
+  gridIconText: { fontSize: 18, color: Colors.silver } as TextStyle,
   gridFileName: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
