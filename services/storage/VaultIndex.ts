@@ -70,6 +70,13 @@ export interface IndexEntry {
    * false until Phase 3 implements thumbnail generation.
    */
   hasThumb: boolean;
+  /**
+   * 2–3 dominant colors (hex strings) sampled from the thumbnail at import
+   * time, for the grid's adaptive gradient background. Optional — absent
+   * on entries created before this field existed, or when extraction
+   * failed; both cases fall back to the plain monochrome background.
+   */
+  colors?: string[];
   displayName?: string;
 }
 

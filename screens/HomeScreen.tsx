@@ -39,6 +39,7 @@ import { Card, HeroStat } from "../components/Card";
 import type { VaultFile } from "../services/storage";
 import { decryptImage } from "../services/encryption";
 import { getDecryptedThumb } from "../services/thumbnailCache";
+import { LinearGradient } from "expo-linear-gradient";
 import * as FileSystem from "expo-file-system";
 import ImageViewer from "../components/ImageViewer";
 import { AlbumFilterBar } from "../components/AlbumFilterBar";
@@ -1409,6 +1410,17 @@ const VaultFileCard = memo(function VaultFileCard({
   );
 });
 
+// Builds a properly-typed gradient tuple from a file's stored colors, or
+// null when there's nothing to show (pre-existing file, extraction failed,
+// or a corrupt/empty entry) — callers fall back to the plain background.
+function getGradientColors(
+  colors: string[] | null,
+): readonly [string, string, ...string[]] | null {
+  if (!colors || colors.length === 0) return null;
+  if (colors.length === 1) return [colors[0], Colors.midDark];
+  return colors.slice(0, 3) as [string, string, ...string[]];
+}
+
 // ─── GridFileCard ────────────────────────────────────────────────────────────
 // Compact square tile for grid view. Same tap/long-press/select semantics as
 // VaultFileCard (decrypt-preview, enter selection, toggle selection) — the
@@ -1500,6 +1512,9 @@ const GridFileCard = memo(function GridFileCard({
   }, [selectionMode, onLongPress, file.uri]);
 
   const displayName = file.displayName ?? file.name.replace(".vault", "");
+  // Computed once per file from already-stored data — no per-frame or
+  // per-scroll recalculation, just a plain derived value.
+  const gradientColors = getGradientColors(file.colors);
 
   return (
     // Three separate nodes, one mechanism each — layout, entering/exiting,
@@ -1524,10 +1539,22 @@ const GridFileCard = memo(function GridFileCard({
         accessibilityLabel={`Decrypt and preview ${displayName}`}
         style={[styles.gridTile, isSelected && styles.gridTileSelected]}
       >
-        {/* Image region — ~75% of the tile. Icon placeholder and blurred
-            thumbnail occupy the same space and cross-fade via inverse
-            opacity on one shared value. */}
+        {/* Image region — ~75% of the tile. Adaptive gradient (when this
+            file has stored colors) sits behind everything; icon placeholder
+            and blurred thumbnail occupy the same space above it and
+            cross-fade via inverse opacity on one shared value. Files with
+            no stored colors (pre-existing imports, or extraction failed)
+            just show gridImageArea's plain background underneath — same
+            as before this feature existed. */}
         <View style={styles.gridImageArea}>
+          {gradientColors && (
+            <LinearGradient
+              colors={gradientColors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
           <Animated.View style={[styles.gridIconWrap, iconAnimStyle]}>
             <Text style={styles.gridIconText}>⬡</Text>
           </Animated.View>

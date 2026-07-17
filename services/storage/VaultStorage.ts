@@ -245,6 +245,7 @@ export class VaultStorage {
     albumName: string | null,
     displayName?: string,
     hasThumb: boolean = false,
+    colors?: string[] | null,
   ): Promise<void> {
     try {
       const info = await FileSystem.getInfoAsync(outPath);
@@ -259,6 +260,7 @@ export class VaultStorage {
           (info as any).modificationTime ?? Date.now() / 1000,
         ),
         hasThumb,
+        colors: colors ?? undefined,
         displayName,
       };
 
@@ -468,6 +470,7 @@ export class VaultStorage {
         name: entry.name,
         uri,
         thumbUri,
+        colors: entry.colors ?? null,
         size: entry.size,
         createdAt: entry.createdAt,
         album: entry.album,
@@ -518,6 +521,7 @@ export class VaultStorage {
         size: file.size,
         createdAt: file.createdAt,
         hasThumb: file.thumbUri !== null,
+        colors: file.colors ?? undefined,
         displayName: file.displayName,
       };
       index = indexAddEntry(index, entry);
@@ -563,6 +567,10 @@ export class VaultStorage {
         name,
         uri,
         thumbUri: thumbInfo.exists ? thumbUri : null,
+        // Colors aren't recoverable from a filesystem rescan without
+        // re-decrypting every file — same limitation this path already has
+        // for tags. Falls back to the plain monochrome grid background.
+        colors: null,
         size: (info as any).size ?? 0,
         createdAt: (info as any).modificationTime ?? Date.now(),
         album,

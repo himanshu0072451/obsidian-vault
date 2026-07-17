@@ -12,6 +12,9 @@ export interface VaultFile {
   uri: string;
   /** URI to the encrypted thumbnail sidecar, if it exists. */
   thumbUri: string | null;
+  /** 2–3 dominant colors sampled from the thumbnail at import time, or
+   * null if unavailable (pre-existing file, or extraction failed). */
+  colors: string[] | null;
   size: number;
   /** Unix timestamp in seconds (from filesystem modificationTime). */
   createdAt: number;

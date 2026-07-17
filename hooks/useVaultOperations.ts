@@ -151,9 +151,10 @@ export function useVaultOperations() {
 
           // console.log("displayName: " + displayName);
 
-          // Best-effort — a failed/missing thumbnail must never block the
-          // primary encrypt; the grid falls back to the placeholder icon.
-          const hasThumb = await generateEncryptedThumbnail(
+          // Best-effort — a failed/missing thumbnail (or color set) must
+          // never block the primary encrypt; the grid falls back to the
+          // placeholder icon / plain background.
+          const { hasThumb, colors } = await generateEncryptedThumbnail(
             asset.uri,
             passcode,
             outPath,
@@ -161,13 +162,14 @@ export function useVaultOperations() {
 
           // Awaited — must not run concurrently; each call does read→modify→write
           // on the index and concurrent calls would overwrite each other. The
-          // thumbnail flag is folded into this same call rather than a second
-          // index write, for the same reason.
+          // thumbnail flag and colors are folded into this same call rather
+          // than a second index write, for the same reason.
           await vault.recordEncryptedFile(
             outPath,
             albumName ?? null,
             displayName,
             hasThumb,
+            colors,
           );
 
           if (deleteOriginal) {
@@ -291,9 +293,9 @@ export function useVaultOperations() {
         const outDir = await vault.ensureAlbumDir(albumName ?? null);
         const outPath = await encryptImage(tempUri, passcode, outDir);
 
-        // Thumbnail is generated from the temp camera file before it's
-        // deleted — best-effort, never blocks the primary encrypt.
-        const hasThumb = await generateEncryptedThumbnail(
+        // Thumbnail + colors are generated from the temp camera file before
+        // it's deleted — best-effort, never blocks the primary encrypt.
+        const { hasThumb, colors } = await generateEncryptedThumbnail(
           tempUri,
           passcode,
           outPath,
@@ -312,6 +314,7 @@ export function useVaultOperations() {
           albumName ?? null,
           cameraDisplayName,
           hasThumb,
+          colors,
         );
 
         await vault.logActivity({

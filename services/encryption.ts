@@ -7,6 +7,7 @@ import * as FileSystem from "expo-file-system";
 import * as Crypto from "expo-crypto";
 import Aes from "react-native-aes-crypto";
 import * as ImageManipulator from "expo-image-manipulator";
+import { getColors } from "react-native-image-colors";
 
 // Encrypted file extension
 export const VAULT_EXTENSION = ".vault";
@@ -127,20 +128,54 @@ export async function encryptImage(
 }
 
 /**
+ * Sample 2–3 dominant colors from the (already resized) thumbnail source,
+ * for use as an adaptive gradient behind the blurred grid thumbnail.
+ *
+ * Best-effort: returns `null` on any failure — a missing color set just
+ * means the grid falls back to its existing plain monochrome background,
+ * never an error.
+ */
+async function extractDominantColors(
+  resizedUri: string,
+): Promise<string[] | null> {
+  try {
+    const result = await getColors(resizedUri, {
+      fallback: "#1a1a1a",
+      cache: false,
+    });
+
+    let candidates: (string | undefined)[];
+    if (result.platform === "ios") {
+      candidates = [result.primary, result.secondary, result.detail];
+    } else {
+      // android + web share this shape
+      candidates = [result.dominant, result.vibrant, result.muted];
+    }
+
+    const colors = candidates.filter((c): c is string => !!c).slice(0, 3);
+    return colors.length > 0 ? colors : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Generate a small preview image from the source, encrypt it with its own
  * fresh salt/iv, and write it as the `.thumb` sidecar next to the given
- * vault file path (same basename, extension swapped).
+ * vault file path (same basename, extension swapped). Also samples 2–3
+ * dominant colors from that same resized image, for the grid's adaptive
+ * gradient background — extracted once here, at import time, never again.
  *
  * Best-effort: any failure (manipulation error, disk full, etc.) is
- * swallowed and reported as `false` — a missing/broken thumbnail must never
- * block or fail the primary encrypt operation. Callers should fall back to
- * the existing placeholder icon when this returns `false`.
+ * swallowed — a missing/broken thumbnail or color set must never block or
+ * fail the primary encrypt operation. Callers should fall back to the
+ * existing placeholder icon / plain background when these come back falsy.
  */
 export async function generateEncryptedThumbnail(
   sourceUri: string,
   passcode: string,
   vaultOutPath: string,
-): Promise<boolean> {
+): Promise<{ hasThumb: boolean; colors: string[] | null }> {
   let resizedUri: string | null = null;
 
   try {
@@ -153,6 +188,8 @@ export async function generateEncryptedThumbnail(
       },
     );
     resizedUri = manipulated.uri;
+
+    const colors = await extractDominantColors(resizedUri);
 
     const base64Data = await FileSystem.readAsStringAsync(resizedUri, {
       encoding: FileSystem.EncodingType.Base64,
@@ -167,9 +204,9 @@ export async function generateEncryptedThumbnail(
     const thumbPath = vaultOutPath.replace(VAULT_EXTENSION, THUMB_EXTENSION);
     await FileSystem.writeAsStringAsync(thumbPath, payload);
 
-    return true;
+    return { hasThumb: true, colors };
   } catch {
-    return false;
+    return { hasThumb: false, colors: null };
   } finally {
     if (resizedUri) {
       await FileSystem.deleteAsync(resizedUri, { idempotent: true }).catch(
