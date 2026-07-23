@@ -172,10 +172,7 @@ const ListHeader = memo(function ListHeader({
           description="Encrypt photos from your library"
           onPress={onEncrypt}
         />
-        <SecondaryAction
-          title="Capture"
-          onPress={onSecureCamera}
-        />
+        <SecondaryAction title="Capture" onPress={onSecureCamera} />
       </Animated.View>
 
       {/* ── Album filter ─────────────────────────────────────────────────── */}
@@ -1197,9 +1194,19 @@ const VaultFileCard = memo(function VaultFileCard({
   onOpenDetails,
   albums,
 }: VaultFileCardProps) {
+  const { thumbUri, thumbOpacity, handleThumbLoad } = useThumbnail(file);
   const scale = useSharedValue(1);
   const deleteScale = useSharedValue(1);
   const starScale = useSharedValue(1);
+
+  const thumbAnimStyle = useAnimatedStyle(() => ({
+    opacity: thumbOpacity.value,
+  }));
+  // Icon placeholder cross-fades out as the thumbnail fades in — same
+  // shared value, inverse opacity, matching GridFileCard's treatment.
+  const iconAnimStyle = useAnimatedStyle(() => ({
+    opacity: 1 - thumbOpacity.value,
+  }));
 
   const cardAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -1248,6 +1255,12 @@ const VaultFileCard = memo(function VaultFileCard({
   }, [selectionMode, onLongPress, file.uri]);
 
   const hasMoveOptions = albums.length > 0 || file.album !== null;
+  // Derived once per render from already-stored data — no recomputation
+  // while scrolling. Both null when the file has no stored colors, in
+  // which case the row renders exactly as it did before this feature.
+  const rowGradient = getListRowGradient(file.colors);
+  const glowColor =
+    file.colors && file.colors.length > 0 ? file.colors[0] : null;
 
   return (
     // Layout transition lives on this outer wrapper only. The opacity-
@@ -1267,143 +1280,179 @@ const VaultFileCard = memo(function VaultFileCard({
           onLongPress={handleCardLongPress}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
-        accessibilityRole="button"
-        accessibilityLabel={`Decrypt and preview ${file.displayName ?? file.name.replace(".vault", "")}`}
-      >
-        <View style={[styles.fileCard, isSelected && styles.fileCardSelected]}>
-          <View style={styles.fileLeft}>
-            {selectionMode ? (
-              <View
-                style={[styles.checkbox, isSelected && styles.checkboxSelected]}
-              >
-                {isSelected && (
-                  <Animated.Text
-                    entering={FadeIn.duration(120)}
-                    style={styles.checkboxMark}
-                  >
-                    ✓
-                  </Animated.Text>
-                )}
-              </View>
-            ) : (
-              <View style={styles.fileIconWrap}>
-                <Text style={styles.fileIconText}>⬡</Text>
-              </View>
+          accessibilityRole="button"
+          accessibilityLabel={`Decrypt and preview ${file.displayName ?? file.name.replace(".vault", "")}`}
+        >
+          <View
+            style={[styles.fileCard, isSelected && styles.fileCardSelected]}
+          >
+            {rowGradient && (
+              <LinearGradient
+                colors={rowGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 6, y: 0 }}
+                locations={[0, 0.35, 1]}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
             )}
-            <View style={styles.fileMeta}>
-              <Text style={styles.fileName} numberOfLines={1}>
-                {file.displayName ?? file.name.replace(".vault", "")}
-              </Text>
-              <Text style={styles.fileDetail} numberOfLines={1}>
-                {file.album && (
-                  <Text style={styles.fileAlbumLabel}>
-                    {file.album}
-                    {"  ·  "}
-                  </Text>
-                )}
-                {formatFileSize(file.size)}
-                {"  ·  "}
-                {formatRelativeTime(file.createdAt * 1000)}
-              </Text>
-              {file.tags.length > 0 && (
-                <View style={styles.fileTagRow}>
-                  {file.tags.slice(0, 3).map((tag) => (
-                    <View key={tag} style={styles.fileTagChip}>
-                      <Text style={styles.fileTagChipText} numberOfLines={1}>
-                        #{tag}
-                      </Text>
-                    </View>
-                  ))}
-                  {file.tags.length > 3 && (
-                    <View style={styles.fileTagChip}>
-                      <Text style={styles.fileTagChipText}>
-                        +{file.tags.length - 3}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Per-file actions hidden during selection mode — these become
-              batch actions in the SelectionActionBar instead. */}
-          {!selectionMode && (
-            <View style={styles.fileActions}>
-              <Pressable
-                onPress={() => onOpenTagSheet(file)}
-                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                accessibilityRole="button"
-                accessibilityLabel="Add tags"
-                style={[
-                  styles.tagBtn,
-                  file.tags.length > 0 && styles.tagBtnActive,
-                ]}
-              >
-                <Text
+            <View style={styles.fileLeft}>
+              {selectionMode ? (
+                <View
                   style={[
-                    styles.tagBtnIcon,
-                    file.tags.length > 0 && styles.tagBtnIconActive,
+                    styles.checkbox,
+                    isSelected && styles.checkboxSelected,
                   ]}
                 >
-                  #
-                </Text>
-              </Pressable>
-              {hasMoveOptions && (
-                <Pressable
-                  onPress={() => onOpenMoveSheet(file)}
-                  hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Move to album"
-                  style={styles.moveBtn}
-                >
-                  <Text style={styles.moveBtnIcon}>⋯</Text>
-                </Pressable>
+                  {isSelected && (
+                    <Animated.Text
+                      entering={FadeIn.duration(120)}
+                      style={styles.checkboxMark}
+                    >
+                      ✓
+                    </Animated.Text>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.fileThumbWrap}>
+                  {glowColor && (
+                    <View
+                      style={[
+                        styles.fileThumbGlow,
+                        { backgroundColor: hexToRgba(glowColor, 0.2) },
+                      ]}
+                    />
+                  )}
+                  <View style={styles.fileThumbInner}>
+                    <Animated.Text style={[styles.fileIconText, iconAnimStyle]}>
+                      ⬡
+                    </Animated.Text>
+                    {thumbUri && (
+                      <Animated.Image
+                        source={{ uri: thumbUri }}
+                        style={[StyleSheet.absoluteFill, thumbAnimStyle]}
+                        resizeMode="cover"
+                        onLoad={handleThumbLoad}
+                        blurRadius={8}
+                      />
+                    )}
+                  </View>
+                </View>
               )}
-              <Animated.View style={starAnimStyle}>
+              <View style={styles.fileMeta}>
+                <Text style={styles.fileName} numberOfLines={1}>
+                  {file.displayName ?? file.name.replace(".vault", "")}
+                </Text>
+                <Text style={styles.fileDetail} numberOfLines={1}>
+                  {file.album && (
+                    <Text style={styles.fileAlbumLabel}>
+                      {file.album}
+                      {"  ·  "}
+                    </Text>
+                  )}
+                  {formatFileSize(file.size)}
+                  {"  ·  "}
+                  {formatRelativeTime(file.createdAt * 1000)}
+                </Text>
+                {file.tags.length > 0 && (
+                  <View style={styles.fileTagRow}>
+                    {file.tags.slice(0, 3).map((tag) => (
+                      <View key={tag} style={styles.fileTagChip}>
+                        <Text style={styles.fileTagChipText} numberOfLines={1}>
+                          #{tag}
+                        </Text>
+                      </View>
+                    ))}
+                    {file.tags.length > 3 && (
+                      <View style={styles.fileTagChip}>
+                        <Text style={styles.fileTagChipText}>
+                          +{file.tags.length - 3}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Per-file actions hidden during selection mode — these become
+              batch actions in the SelectionActionBar instead. */}
+            {!selectionMode && (
+              <View style={styles.fileActions}>
                 <Pressable
-                  onPress={handleStarPress}
+                  onPress={() => onOpenTagSheet(file)}
                   hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    file.isFavorite
-                      ? "Remove from favorites"
-                      : "Add to favorites"
-                  }
-                  style={styles.starBtn}
+                  accessibilityLabel="Add tags"
+                  style={[
+                    styles.tagBtn,
+                    file.tags.length > 0 && styles.tagBtnActive,
+                  ]}
                 >
                   <Text
                     style={[
-                      styles.starIcon,
-                      file.isFavorite && styles.starIconActive,
+                      styles.tagBtnIcon,
+                      file.tags.length > 0 && styles.tagBtnIconActive,
                     ]}
                   >
-                    ★
+                    #
                   </Text>
                 </Pressable>
-              </Animated.View>
-              <Animated.View style={deleteAnimStyle}>
+                {hasMoveOptions && (
+                  <Pressable
+                    onPress={() => onOpenMoveSheet(file)}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Move to album"
+                    style={styles.moveBtn}
+                  >
+                    <Text style={styles.moveBtnIcon}>⋯</Text>
+                  </Pressable>
+                )}
+                <Animated.View style={starAnimStyle}>
+                  <Pressable
+                    onPress={handleStarPress}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      file.isFavorite
+                        ? "Remove from favorites"
+                        : "Add to favorites"
+                    }
+                    style={styles.starBtn}
+                  >
+                    <Text
+                      style={[
+                        styles.starIcon,
+                        file.isFavorite && styles.starIconActive,
+                      ]}
+                    >
+                      ★
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+                <Animated.View style={deleteAnimStyle}>
+                  <Pressable
+                    onPress={handleDeletePress}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${file.displayName ?? file.name.replace(".vault", "")}`}
+                    style={styles.deleteBtn}
+                  >
+                    <Text style={styles.deleteIcon}>✕</Text>
+                  </Pressable>
+                </Animated.View>
                 <Pressable
-                  onPress={handleDeletePress}
+                  onPress={() => onOpenDetails(file)}
                   hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Delete ${file.displayName ?? file.name.replace(".vault", "")}`}
-                  style={styles.deleteBtn}
+                  accessibilityLabel="View file details"
                 >
-                  <Text style={styles.deleteIcon}>✕</Text>
+                  <Text style={styles.chevron}>›</Text>
                 </Pressable>
-              </Animated.View>
-              <Pressable
-                onPress={() => onOpenDetails(file)}
-                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-                accessibilityRole="button"
-                accessibilityLabel="View file details"
-              >
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
+              </View>
+            )}
+          </View>
         </Pressable>
       </Animated.View>
     </Animated.View>
@@ -1419,6 +1468,77 @@ function getGradientColors(
   if (!colors || colors.length === 0) return null;
   if (colors.length === 1) return [colors[0], Colors.midDark];
   return colors.slice(0, 3) as [string, string, ...string[]];
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full =
+    clean.length === 3
+      ? clean
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : clean;
+  const value = parseInt(full, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Spotify-style row wash: a tinted glow right behind the thumbnail that
+// dips through neutral, then the row itself darkens toward the right edge
+// — a subtle vignette that deepens behind the filename/metadata rather
+// than fading to nothing, which also keeps text contrast comfortably safe
+// (darker backdrop, same light text). Falls back to no gradient (today's
+// plain surface) when the file has no stored colors.
+function getListRowGradient(
+  colors: string[] | null,
+): readonly [string, string, string] | null {
+  if (!colors || colors.length === 0) return null;
+  const dominant = colors[0];
+  // Ambient-light feel, not a paint wash: capped at 16% opacity even at its
+  // strongest point (right behind the thumbnail).
+  return [
+    hexToRgba(dominant, 0.16),
+    "rgba(0,0,0,0.05)",
+    "rgba(0,0,0,0.22)",
+  ];
+}
+
+// ─── useThumbnail ───────────────────────────────────────────────────────────
+// Shared lazy-decrypt + cross-fade logic used by both VaultFileCard (list)
+// and GridFileCard, so both reuse the exact same cache, concurrency limits,
+// and fade behavior rather than two independently-drifting copies.
+function useThumbnail(file: VaultFile) {
+  const { passcode } = useAuth();
+  const [thumbUri, setThumbUri] = useState<string | null>(null);
+  const thumbOpacity = useSharedValue(0);
+
+  // Lazy: FlashList only mounts cells near the viewport, so "on mount"
+  // already approximates "when visible." Best-effort — a failed or missing
+  // thumbnail just leaves the placeholder icon showing.
+  useEffect(() => {
+    let cancelled = false;
+    thumbOpacity.value = 0;
+    setThumbUri(null);
+
+    if (file.thumbUri) {
+      getDecryptedThumb(file, passcode).then((uri) => {
+        if (!cancelled && uri) setThumbUri(uri);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [file.uri, file.thumbUri, passcode]);
+
+  const handleThumbLoad = useCallback(() => {
+    thumbOpacity.value = withTiming(1, { duration: 180 });
+  }, []);
+
+  return { thumbUri, thumbOpacity, handleThumbLoad };
 }
 
 // ─── GridFileCard ────────────────────────────────────────────────────────────
@@ -1445,33 +1565,8 @@ const GridFileCard = memo(function GridFileCard({
   onLongPress,
   onToggleSelect,
 }: GridFileCardProps) {
-  const { passcode } = useAuth();
-  const [thumbUri, setThumbUri] = useState<string | null>(null);
+  const { thumbUri, thumbOpacity, handleThumbLoad } = useThumbnail(file);
   const scale = useSharedValue(1);
-  const thumbOpacity = useSharedValue(0);
-
-  // Lazy thumbnail load: FlashList only mounts cells near the viewport, so
-  // "on mount" already approximates "when visible." Best-effort — a failed
-  // or missing thumbnail just leaves the placeholder icon showing.
-  useEffect(() => {
-    let cancelled = false;
-    thumbOpacity.value = 0;
-    setThumbUri(null);
-
-    if (file.thumbUri) {
-      getDecryptedThumb(file, passcode).then((uri) => {
-        if (!cancelled && uri) setThumbUri(uri);
-      });
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [file.uri, file.thumbUri, passcode]);
-
-  const handleThumbLoad = useCallback(() => {
-    thumbOpacity.value = withTiming(1, { duration: 180 });
-  }, []);
 
   const thumbAnimStyle = useAnimatedStyle(() => ({
     opacity: thumbOpacity.value,
@@ -1524,84 +1619,87 @@ const GridFileCard = memo(function GridFileCard({
     // warning. cardAnimStyle sets a custom `opacity` (selection dim), so it
     // cannot share a node with entering/exiting either — hence three layers
     // instead of VaultFileCard's two (whose cardAnimStyle has no opacity).
-    <Animated.View style={styles.gridTileWrap} layout={LinearTransition.duration(220)}>
+    <Animated.View
+      style={styles.gridTileWrap}
+      layout={LinearTransition.duration(220)}
+    >
       <Animated.View
         entering={FadeIn.duration(180)}
         exiting={FadeOut.duration(140)}
       >
-      <Animated.View style={cardAnimStyle}>
-      <Pressable
-        onPress={handleCardPress}
-        onLongPress={handleCardLongPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        accessibilityRole="button"
-        accessibilityLabel={`Decrypt and preview ${displayName}`}
-        style={[styles.gridTile, isSelected && styles.gridTileSelected]}
-      >
-        {/* Image region — ~75% of the tile. Adaptive gradient (when this
+        <Animated.View style={cardAnimStyle}>
+          <Pressable
+            onPress={handleCardPress}
+            onLongPress={handleCardLongPress}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            accessibilityRole="button"
+            accessibilityLabel={`Decrypt and preview ${displayName}`}
+            style={[styles.gridTile, isSelected && styles.gridTileSelected]}
+          >
+            {/* Image region — ~75% of the tile. Adaptive gradient (when this
             file has stored colors) sits behind everything; icon placeholder
             and blurred thumbnail occupy the same space above it and
             cross-fade via inverse opacity on one shared value. Files with
             no stored colors (pre-existing imports, or extraction failed)
             just show gridImageArea's plain background underneath — same
             as before this feature existed. */}
-        <View style={styles.gridImageArea}>
-          {gradientColors && (
-            <LinearGradient
-              colors={gradientColors}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-          )}
-          <Animated.View style={[styles.gridIconWrap, iconAnimStyle]}>
-            <Text style={styles.gridIconText}>⬡</Text>
-          </Animated.View>
-          {thumbUri && (
-            <Animated.Image
-              source={{ uri: thumbUri }}
-              style={[StyleSheet.absoluteFill, thumbAnimStyle]}
-              resizeMode="cover"
-              blurRadius={13}
-              onLoad={handleThumbLoad}
-            />
-          )}
-        </View>
+            <View style={styles.gridImageArea}>
+              {gradientColors && (
+                <LinearGradient
+                  colors={gradientColors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+              <Animated.View style={[styles.gridIconWrap, iconAnimStyle]}>
+                <Text style={styles.gridIconText}>⬡</Text>
+              </Animated.View>
+              {thumbUri && (
+                <Animated.Image
+                  source={{ uri: thumbUri }}
+                  style={[StyleSheet.absoluteFill, thumbAnimStyle]}
+                  resizeMode="cover"
+                  blurRadius={13}
+                  onLoad={handleThumbLoad}
+                />
+              )}
+            </View>
 
-        {/* Caption band — ~25% of the tile, dark scrim behind the filename
+            {/* Caption band — ~25% of the tile, dark scrim behind the filename
             for readability regardless of what's under it. */}
-        <View style={styles.gridCaptionBand}>
-          <Text style={styles.gridFileName} numberOfLines={1}>
-            {displayName}
-          </Text>
-        </View>
+            <View style={styles.gridCaptionBand}>
+              <Text style={styles.gridFileName} numberOfLines={1}>
+                {displayName}
+              </Text>
+            </View>
 
-        {/* Badges float above both regions. */}
-        {file.isFavorite && (
-          <View style={styles.gridFavoriteBadge}>
-            <Text style={styles.gridFavoriteIcon}>★</Text>
-          </View>
-        )}
-        {selectionMode && (
-          <View
-            style={[
-              styles.gridCheckbox,
-              isSelected && styles.gridCheckboxSelected,
-            ]}
-          >
-            {isSelected && (
-              <Animated.Text
-                entering={FadeIn.duration(120)}
-                style={styles.checkboxMark}
-              >
-                ✓
-              </Animated.Text>
+            {/* Badges float above both regions. */}
+            {file.isFavorite && (
+              <View style={styles.gridFavoriteBadge}>
+                <Text style={styles.gridFavoriteIcon}>★</Text>
+              </View>
             )}
-          </View>
-        )}
-      </Pressable>
-      </Animated.View>
+            {selectionMode && (
+              <View
+                style={[
+                  styles.gridCheckbox,
+                  isSelected && styles.gridCheckboxSelected,
+                ]}
+              >
+                {isSelected && (
+                  <Animated.Text
+                    entering={FadeIn.duration(120)}
+                    style={styles.checkboxMark}
+                  >
+                    ✓
+                  </Animated.Text>
+                )}
+              </View>
+            )}
+          </Pressable>
+        </Animated.View>
       </Animated.View>
     </Animated.View>
   );
@@ -2147,6 +2245,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    overflow: "hidden",
   } as ViewStyle,
   fileCardSelected: {
     borderColor: Colors.silver,
@@ -2178,16 +2277,35 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     minWidth: 0,
   } as ViewStyle,
-  fileIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.midDark,
-    alignItems: "center",
-    justifyContent: "center",
+  // Thumbnail container — slightly larger than the old plain icon badge
+  // (52 vs 40), with softer rounded corners (Radius.md) instead of a full
+  // circle, so it reads as a small photo rather than an icon chip.
+  fileThumbWrap: {
+    width: 52,
+    height: 52,
     flexShrink: 0,
   } as ViewStyle,
-  fileIconText: { fontSize: 17, color: Colors.silver } as TextStyle,
+  // Soft colored halo behind the thumbnail, sampled from the file's
+  // dominant color — a cross-platform-reliable stand-in for a tinted glow
+  // (native shadow color isn't consistently supported on Android).
+  fileThumbGlow: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: Radius.md + 4,
+  } as ViewStyle,
+  fileThumbInner: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.midDark,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
+  fileIconText: { fontSize: 19, color: Colors.silver } as TextStyle,
   fileMeta: { flex: 1, minWidth: 0 } as ViewStyle,
   fileName: {
     fontSize: Typography.base,
