@@ -15,7 +15,6 @@ import {
   ScrollView,
   ViewStyle,
   TextStyle,
-  ActivityIndicator,
   RefreshControl,
   Alert,
 } from "react-native";
@@ -363,12 +362,14 @@ export default function HomeScreen({
   const [allFiles, setAllFiles] = useState<VaultFile[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isDecrypting, setIsDecrypting] = useState(false);
-  const [decryptingFileName, setDecryptingFileName] = useState<string | null>(
-    null,
-  );
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+  // Preview state — the viewer opens the instant a file is tapped, showing
+  // the already-cached thumbnail immediately; previewFullUri fills in once
+  // the full-resolution decrypt finishes in the background, and the viewer
+  // crossfades to it. No blocking "Decrypting…" screen in between.
+  const [previewFile, setPreviewFile] = useState<VaultFile | null>(null);
+  const [previewThumbUri, setPreviewThumbUri] = useState<string | null>(null);
+  const [previewFullUri, setPreviewFullUri] = useState<string | null>(null);
+  const [previewLoadingFull, setPreviewLoadingFull] = useState(false);
   const activeTempUri = useRef<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null | undefined>(
     undefined,
@@ -452,22 +453,29 @@ export default function HomeScreen({
 
   const handleDecrypt = useCallback(
     async (file: VaultFile) => {
+      // Open immediately with whatever's already cached — never a blank or
+      // blocking screen. The grid/list already triggered thumbnail decrypt
+      // for visible cells, so this is normally an instant cache hit.
+      setPreviewFile(file);
+      setPreviewFullUri(null);
+      setPreviewLoadingFull(true);
+
+      const cachedThumb = await getDecryptedThumb(file, passcode);
+      setPreviewThumbUri(cachedThumb);
+
       try {
-        setIsDecrypting(true);
-        setDecryptingFileName(
-          file.displayName ?? file.name.replace(".vault", ""),
-        );
         const outPath = await decryptImage(
           file.uri,
           passcode,
           FileSystem.cacheDirectory!,
         );
         activeTempUri.current = outPath;
-        setPreviewFileName(file.displayName ?? file.name.replace(".vault", ""));
-        setPreviewUri(outPath);
+        setPreviewFullUri(outPath);
       } catch (e: any) {
         const isWrongPasscode =
           e?.message?.includes("padding") || e?.message?.includes("passcode");
+        setPreviewFile(null);
+        setPreviewThumbUri(null);
         Alert.alert(
           "Decryption Failed",
           isWrongPasscode
@@ -476,20 +484,29 @@ export default function HomeScreen({
           [{ text: "OK" }],
         );
       } finally {
-        setIsDecrypting(false);
-        setDecryptingFileName(null);
+        setPreviewLoadingFull(false);
       }
     },
     [passcode],
   );
 
   const handleClosePreview = useCallback(async () => {
-    setPreviewUri(null);
-    setPreviewFileName(null);
+    setPreviewFile(null);
+    setPreviewThumbUri(null);
+    setPreviewFullUri(null);
     if (activeTempUri.current) {
       await FileSystem.deleteAsync(activeTempUri.current, { idempotent: true });
       activeTempUri.current = null;
     }
+  }, []);
+
+  // previewFile is a separate snapshot from allFiles/tagSheetFile/etc. — any
+  // mutation that could apply to the file currently open in the viewer
+  // (favorite, move, tag) should patch it here too, or the viewer's bottom
+  // bar and favorite state go stale until it's closed and reopened. No-op
+  // if the viewer isn't showing that file (or isn't open at all).
+  const syncPreviewFile = useCallback((uri: string, patch: Partial<VaultFile>) => {
+    setPreviewFile((prev) => (prev && prev.uri === uri ? { ...prev, ...patch } : prev));
   }, []);
 
   // ─── Delete ───────────────────────────────────────────────────────────────
@@ -515,6 +532,17 @@ export default function HomeScreen({
     [loadFiles],
   );
 
+  // Deleting from within the viewer closes it first — the file it's
+  // showing is about to stop existing, so there's nothing left to view
+  // once the (still-shown, native) confirm alert is accepted.
+  const handleDeleteFromViewer = useCallback(
+    (file: VaultFile) => {
+      handleClosePreview();
+      handleDelete(file);
+    },
+    [handleClosePreview, handleDelete],
+  );
+
   // ─── Favorites ────────────────────────────────────────────────────────────
 
   const handleToggleFavorite = useCallback(
@@ -531,6 +559,17 @@ export default function HomeScreen({
       }
     },
     [vault],
+  );
+
+  // previewFile is a separate snapshot from allFiles, so the viewer's own
+  // favorite toggle needs to update it directly too, or the star would
+  // revert to stale on the next render (allFiles updates, previewFile doesn't).
+  const handleToggleFavoriteInViewer = useCallback(
+    (file: VaultFile) => {
+      syncPreviewFile(file.uri, { isFavorite: !file.isFavorite });
+      handleToggleFavorite(file);
+    },
+    [handleToggleFavorite, syncPreviewFile],
   );
 
   const handleFavoritesChip = useCallback(() => {
@@ -614,6 +653,7 @@ export default function HomeScreen({
           f.uri === file.uri ? { ...f, album: targetAlbum } : f,
         ),
       );
+      syncPreviewFile(file.uri, { album: targetAlbum });
       try {
         const newUri = await moveFile(file.uri, targetAlbum);
         if (newUri && newUri !== file.uri) {
@@ -624,6 +664,7 @@ export default function HomeScreen({
                 : f,
             ),
           );
+          syncPreviewFile(file.uri, { uri: newUri, album: targetAlbum });
         }
       } catch {
         setAllFiles((prev) =>
@@ -631,9 +672,10 @@ export default function HomeScreen({
             f.uri === file.uri ? { ...f, album: file.album, uri: file.uri } : f,
           ),
         );
+        syncPreviewFile(file.uri, { album: file.album, uri: file.uri });
       }
     },
-    [moveSheetFile, moveFile],
+    [moveSheetFile, moveFile, syncPreviewFile],
   );
 
   // ─── Tags ─────────────────────────────────────────────────────────────────
@@ -660,6 +702,7 @@ export default function HomeScreen({
             prev.map((f) => (f.uri === file.uri ? fresh : f)),
           );
           setTagSheetFile(fresh);
+          syncPreviewFile(file.uri, { tags: fresh.tags });
         }
       } else {
         for (const uri of selectedUris) {
@@ -668,7 +711,7 @@ export default function HomeScreen({
         await loadFiles();
       }
     },
-    [tagSheetFile, selectedUris, vault, loadFiles],
+    [tagSheetFile, selectedUris, vault, loadFiles, syncPreviewFile],
   );
 
   const handleRemoveTag = useCallback(
@@ -680,8 +723,9 @@ export default function HomeScreen({
       const fresh = { ...file, tags: updatedTags };
       setAllFiles((prev) => prev.map((f) => (f.uri === file.uri ? fresh : f)));
       setTagSheetFile(fresh);
+      syncPreviewFile(file.uri, { tags: fresh.tags });
     },
-    [tagSheetFile, vault],
+    [tagSheetFile, vault, syncPreviewFile],
   );
 
   const handleTagSheetDone = useCallback(() => {
@@ -1072,29 +1116,17 @@ export default function HomeScreen({
 
       {/* ── Image preview ──────────────────────────────────────────────────── */}
       <ImageViewer
-        visible={!!previewUri}
-        imageUri={previewUri}
-        fileName={previewFileName}
+        visible={!!previewFile}
+        thumbUri={previewThumbUri}
+        imageUri={previewFullUri}
+        loadingFull={previewLoadingFull}
+        file={previewFile}
         onClose={handleClosePreview}
+        onToggleFavorite={handleToggleFavoriteInViewer}
+        onOpenMoveSheet={handleMoveFile}
+        onOpenTagSheet={handleOpenTagSheet}
+        onDelete={handleDeleteFromViewer}
       />
-
-      {/* ── Decrypt loading overlay ────────────────────────────────────────── */}
-      {isDecrypting && (
-        <Animated.View
-          entering={FadeIn.duration(150)}
-          style={styles.decryptOverlay}
-        >
-          <View style={styles.decryptSheet}>
-            <ActivityIndicator size="large" color={Colors.silver} />
-            <Text style={styles.decryptTitle}>Decrypting</Text>
-            {decryptingFileName && (
-              <Text style={styles.decryptFileName} numberOfLines={1}>
-                {decryptingFileName}
-              </Text>
-            )}
-          </View>
-        </Animated.View>
-      )}
 
       {/* ── Encrypt progress overlay ───────────────────────────────────────── */}
       <ProgressOverlay
@@ -2505,36 +2537,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 220,
-  } as TextStyle,
-
-  decryptOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.88)",
-    justifyContent: "center",
-    alignItems: "center",
-  } as ViewStyle,
-  decryptSheet: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing["2xl"],
-    alignItems: "center",
-    minWidth: 220,
-    gap: Spacing.md,
-  } as ViewStyle,
-  decryptTitle: {
-    fontSize: Typography.md,
-    fontWeight: Typography.semibold,
-    color: Colors.text,
-    letterSpacing: Typography.wide,
-  } as TextStyle,
-  decryptFileName: {
-    fontSize: Typography.sm,
-    color: Colors.textSecondary,
-    maxWidth: 200,
-    textAlign: "center",
   } as TextStyle,
 
   // Selection action bar

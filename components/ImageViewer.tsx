@@ -2,6 +2,9 @@
  * ImageViewer — immersive fullscreen image viewer
  *
  * Features:
+ *   • Thumbnail-first opening — shows the already-cached thumbnail
+ *     instantly, crossfades to the full-resolution image once it decodes.
+ *     Never a blank or blocking screen while decrypting.
  *   • Pinch-to-zoom (0.5× – 6×) with spring snap-back
  *   • Double-tap zoom toggle (1× ↔ 3×) at tap point
  *   • Momentum panning with edge clamping
@@ -25,8 +28,10 @@ import {
   Platform,
   ViewStyle,
   TextStyle,
+  ActivityIndicator,
 } from "react-native";
 import Animated, {
+  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -45,15 +50,53 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
+import type { VaultFile } from "../services/storage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ImageViewerProps {
   visible: boolean;
+  /** Already-cached (usually instant) preview — shown immediately so the
+   * viewer never opens to a blank screen while the full image decrypts. */
+  thumbUri: string | null;
+  /** Full-resolution decrypted image. Null until decryption finishes; the
+   * viewer crossfades to it once available. */
   imageUri: string | null;
-  fileName?: string | null;
+  /** True while the full-resolution decrypt is still running in the
+   * background. Drives a subtle delayed loading indicator only. */
+  loadingFull?: boolean;
+  /** Full metadata for the bottom bar (date/size/album/tags) and the top
+   * bar's favorite/more actions. Null while nothing is being previewed. */
+  file: VaultFile | null;
   onClose: () => void;
+  onToggleFavorite: (file: VaultFile) => void;
+  onOpenMoveSheet: (file: VaultFile) => void;
+  onOpenTagSheet: (file: VaultFile) => void;
+  onDelete: (file: VaultFile) => void;
 }
+
+// ─── Formatting helpers ─────────────────────────────────────────────────────
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1_048_576).toFixed(1)} MB`;
+}
+
+function formatFullDate(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+// Only show a loading indicator if the full-resolution decrypt takes longer
+// than this — most files resolve well under it, so the indicator normally
+// never appears at all.
+const SLOW_LOAD_THRESHOLD = 400;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -66,19 +109,95 @@ const SWIPE_CLOSE_DISTANCE = 120; // or this many px down at any velocity
 const CHROME_HIDE_DELAY = 3000; // ms until chrome auto-hides
 const SPRING_CONFIG = { damping: 22, stiffness: 280, mass: 0.8 };
 const SPRING_SOFT = { damping: 30, stiffness: 200, mass: 1 };
+const BUTTON_PRESS_SCALE = 0.92;
+
+// ─── ChromeButton ───────────────────────────────────────────────────────────
+// Shared press treatment for every chrome control (back, favorite, more,
+// more-menu items) — slight scale + opacity dip on press-in, spring back on
+// release, plus a soft haptic. One place for this instead of re-implementing
+// press feedback per button.
+
+interface ChromeButtonProps {
+  onPress: () => void;
+  children: React.ReactNode;
+  style?: ViewStyle | (ViewStyle | undefined | false)[];
+  accessibilityLabel: string;
+  hitSlop?: { top: number; bottom: number; left: number; right: number };
+  haptic?: Haptics.ImpactFeedbackStyle;
+}
+
+function ChromeButton({
+  onPress,
+  children,
+  style,
+  accessibilityLabel,
+  hitSlop,
+  haptic = Haptics.ImpactFeedbackStyle.Light,
+}: ChromeButtonProps) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withTiming(BUTTON_PRESS_SCALE, { duration: 90 });
+    opacity.value = withTiming(0.7, { duration: 90 });
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, SPRING_CONFIG);
+    opacity.value = withTiming(1, { duration: 150 });
+  }, []);
+
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(haptic).catch(() => {});
+    onPress();
+  }, [onPress, haptic]);
+
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={style}
+        hitSlop={hitSlop}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 // ─── ImageViewer ─────────────────────────────────────────────────────────────
 
 export default memo(function ImageViewer({
   visible,
+  thumbUri,
   imageUri,
-  fileName,
+  loadingFull,
+  file,
   onClose,
+  onToggleFavorite,
+  onOpenMoveSheet,
+  onOpenTagSheet,
+  onDelete,
 }: ImageViewerProps) {
+  const [moreMenuVisible, setMoreMenuVisible] = useState(false);
+
   // Visibility fade
   // const backdropOpacity = useSharedValue(0);
   const backdropOpacity = useSharedValue(1);
+  // Thumbnail fades in first (near-instant, already cached); the
+  // full-resolution image fades in on top of it once it decodes.
+  const thumbOpacity = useSharedValue(0);
   const imageOpacity = useSharedValue(0);
+  const [showSlowLoadIndicator, setShowSlowLoadIndicator] = useState(false);
 
   // Transform state
   const scale = useSharedValue(1);
@@ -91,6 +210,11 @@ export default memo(function ImageViewer({
   // Swipe-to-close state (separate from pan so they don't conflict)
   const swipeY = useSharedValue(0);
   const isSwipingToClose = useSharedValue(false);
+
+  // Open/close pop: springs from 0.92→1 on open, eases down slightly on
+  // close. Composes with (multiplies into) the drag-shrink below and the
+  // user's own pinch-zoom scale, since it lives on the outer container.
+  const openScale = useSharedValue(0.92);
 
   // Chrome (header/hint) visibility
   const chromeOpacity = useSharedValue(1);
@@ -129,6 +253,7 @@ export default memo(function ImageViewer({
       cancelAnimation(swipeY);
       cancelAnimation(backdropOpacity);
       cancelAnimation(imageOpacity);
+      cancelAnimation(openScale);
 
       // Reset all transform state
       scale.value = 1;
@@ -139,33 +264,85 @@ export default memo(function ImageViewer({
       savedY.value = 0;
       swipeY.value = 0;
       isSwipingToClose.value = false;
+      setMoreMenuVisible(false);
 
-      // // Fade in
-      // backdropOpacity.value = withTiming(1, {
-      //   duration: 220,
-      //   easing: Easing.out(Easing.cubic),
-      // });
-      // imageOpacity.value = withTiming(1, {
-      //   duration: 280,
-      //   easing: Easing.out(Easing.cubic),
-      // });
-
-      // Backdrop is already solid (starts at 1); only image fades in
-      imageOpacity.value = withTiming(1, {
-        duration: 280,
+      // Thumbnail (already cached, usually instant) fades in right away;
+      // the full-resolution image is a separate layer that only fades in
+      // once it actually finishes decoding — see handleFullImageLoad below.
+      cancelAnimation(thumbOpacity);
+      imageOpacity.value = 0;
+      thumbOpacity.value = withTiming(1, {
+        duration: 200,
         easing: Easing.out(Easing.cubic),
+      });
+
+      // Gentle spring pop-in, Apple-Photos style — not a linear fade alone.
+      openScale.value = 0.92;
+      openScale.value = withSpring(1, {
+        damping: 26,
+        stiffness: 260,
+        mass: 0.9,
       });
 
       // Start chrome hide timer
       scheduleChromeHide();
     } else {
       clearChromeTimer();
+      setMoreMenuVisible(false);
       chromeOpacity.value = withTiming(0, { duration: 150 });
       backdropOpacity.value = withTiming(0, { duration: 200 });
+      thumbOpacity.value = withTiming(0, { duration: 180 });
       imageOpacity.value = withTiming(0, { duration: 180 });
+      openScale.value = withTiming(0.94, {
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+      });
       // console.log("[IV] 5. withTiming animations STARTED", Date.now());
     }
   }, [visible]);
+
+  // ─── Full-resolution crossfade ─────────────────────────────────────────
+  // Fades in only once the full-res Image has actually decoded (onLoad),
+  // not merely once the uri prop appears — avoids flashing an undecoded
+  // frame. If imageUri disappears (viewer closed/reset), reset so the next
+  // open starts from the thumbnail again.
+  useEffect(() => {
+    if (!imageUri) {
+      imageOpacity.value = 0;
+    }
+  }, [imageUri]);
+
+  const handleFullImageLoad = useCallback(() => {
+    imageOpacity.value = withTiming(1, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, []);
+
+  // Called via runOnJS from worklet gesture handlers — Haptics is a JS API,
+  // not reanimated-worklet-safe, so it can't be called directly from there.
+  const triggerZoomHaptic = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }, []);
+
+  const triggerDismissHaptic = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+  }, []);
+
+  // ─── Delayed "still loading" indicator ─────────────────────────────────
+  // Most files decrypt fast enough that this never appears at all — it
+  // only shows up if loadingFull is still true after SLOW_LOAD_THRESHOLD.
+  useEffect(() => {
+    if (!visible || !loadingFull || imageUri) {
+      setShowSlowLoadIndicator(false);
+      return;
+    }
+    const timer = setTimeout(
+      () => setShowSlowLoadIndicator(true),
+      SLOW_LOAD_THRESHOLD,
+    );
+    return () => clearTimeout(timer);
+  }, [visible, loadingFull, imageUri]);
 
   // ─── Chrome timer ──────────────────────────────────────────────────────
 
@@ -289,6 +466,7 @@ export default memo(function ImageViewer({
         (e.velocityY > SWIPE_CLOSE_VELOCITY ||
           swipeY.value > SWIPE_CLOSE_DISTANCE)
       ) {
+        runOnJS(triggerDismissHaptic)();
         // // Animate off screen then call onClose
         // swipeY.value = withTiming(SCREEN.height, { duration: 280 });
         // backdropOpacity.value = withTiming(0, { duration: 240 }, () => {
@@ -347,6 +525,7 @@ export default memo(function ImageViewer({
 
       if (timeSinceLast < 280) {
         // Double tap — zoom toggle at tap location
+        runOnJS(triggerZoomHaptic)();
         if (scale.value > 1.5) {
           // Zoom out
           scale.value = withSpring(1, SPRING_CONFIG);
@@ -396,10 +575,25 @@ export default memo(function ImageViewer({
     opacity: backdropOpacity.value,
   }));
 
-  const imageContainerStyle = useAnimatedStyle(() => ({
-    opacity: imageOpacity.value,
-    transform: [{ translateY: swipeY.value }],
-  }));
+  // Swipe-to-close drag follow only — each image layer fades independently
+  // (thumbStyle / fullImageStyle below) rather than sharing one opacity.
+  const imageContainerStyle = useAnimatedStyle(() => {
+    // Interactive drag-shrink — the image shrinks slightly the further
+    // it's dragged toward dismissal, on top of the open/close pop-scale.
+    // Composes multiplicatively so both effects read naturally together.
+    const dragShrink = interpolate(
+      swipeY.value,
+      [0, SCREEN.height * 0.5],
+      [1, 0.88],
+      Extrapolation.CLAMP,
+    );
+    return {
+      transform: [
+        { translateY: swipeY.value },
+        { scale: openScale.value * dragShrink },
+      ],
+    };
+  });
 
   const imageTransformStyle = useAnimatedStyle(() => ({
     transform: [
@@ -407,6 +601,14 @@ export default memo(function ImageViewer({
       { translateY: translateY.value },
       { scale: scale.value },
     ],
+  }));
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    opacity: thumbOpacity.value,
+  }));
+
+  const fullImageStyle = useAnimatedStyle(() => ({
+    opacity: imageOpacity.value,
   }));
 
   const chromeStyle = useAnimatedStyle(() => ({
@@ -432,57 +634,200 @@ export default memo(function ImageViewer({
               <Animated.View
                 style={[StyleSheet.absoluteFill, imageContainerStyle]}
               >
+                {/* Thumbnail — already cached, appears immediately so the
+                    viewer never opens to a blank screen. */}
+                {thumbUri && (
+                  <Animated.Image
+                    source={{ uri: thumbUri }}
+                    style={[styles.image, imageTransformStyle, thumbStyle]}
+                    resizeMode="contain"
+                  />
+                )}
+                {/* Full-resolution image — crossfades in on top once it has
+                    actually finished decoding (see handleFullImageLoad). */}
                 {imageUri && (
                   <Animated.Image
                     source={{ uri: imageUri }}
-                    style={[styles.image, imageTransformStyle]}
+                    style={[
+                      StyleSheet.absoluteFill,
+                      styles.image,
+                      imageTransformStyle,
+                      fullImageStyle,
+                    ]}
                     resizeMode="contain"
-                    // onLoadStart={() =>
-                    //   console.log("[IV] 6. Image onLoadStart", Date.now())
-                    // }
-                    // onLoad={() =>
-                    //   console.log(
-                    //     "[IV] 7. Image onLoad (decode complete)",
-                    //     Date.now(),
-                    //   )
-                    // }
+                    onLoad={handleFullImageLoad}
                   />
                 )}
               </Animated.View>
             </GestureDetector>
 
-            {/* Chrome — header + hint, auto-hides */}
+            {/* Subtle "still loading" indicator — only appears if the
+                full-resolution decrypt is taking noticeably long. */}
+            {showSlowLoadIndicator && (
+              <Animated.View
+                style={styles.slowLoadIndicator}
+                pointerEvents="none"
+              >
+                <ActivityIndicator color="rgba(255,255,255,0.7)" />
+              </Animated.View>
+            )}
+
+            {/* Chrome — top bar, bottom metadata bar, auto-hides */}
             <Animated.View
               style={[StyleSheet.absoluteFill, styles.chromeLayer, chromeStyle]}
               pointerEvents="box-none"
             >
-              {/* Header */}
-              <View style={styles.header}>
-                <View style={styles.headerGlass}>
-                  <View style={styles.lockDot} />
-                  <Text style={styles.fileName} numberOfLines={1}>
-                    {fileName ?? "Protected Image"}
-                  </Text>
-                  <Pressable
+              {/* Dismisses the more-menu on any outside tap. Only mounted
+                  while the menu is open, so it never intercepts normal
+                  image taps/gestures otherwise. */}
+              {moreMenuVisible && (
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={() => setMoreMenuVisible(false)}
+                />
+              )}
+
+              {/* Top bar — back / favorite / more */}
+              <View style={styles.topBarWrap}>
+                <BlurView
+                  intensity={40}
+                  tint="dark"
+                  experimentalBlurMethod="dimezisBlurView"
+                  style={styles.topBar}
+                >
+                  <ChromeButton
                     onPress={onClose}
-                    style={styles.closeBtn}
+                    style={styles.iconBtn}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close image viewer"
+                    accessibilityLabel="Back"
                   >
-                    <Text style={styles.closeBtnText}>✕</Text>
-                  </Pressable>
-                </View>
+                    <Text style={styles.iconBtnText}>‹</Text>
+                  </ChromeButton>
+                  <View style={styles.topBarSpacer} />
+                  {file && (
+                    <ChromeButton
+                      onPress={() => onToggleFavorite(file)}
+                      style={styles.iconBtn}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      accessibilityLabel={
+                        file.isFavorite
+                          ? "Remove from favorites"
+                          : "Add to favorites"
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.iconBtnText,
+                          file.isFavorite && styles.iconBtnTextActive,
+                        ]}
+                      >
+                        {file.isFavorite ? "★" : "☆"}
+                      </Text>
+                    </ChromeButton>
+                  )}
+                  <ChromeButton
+                    onPress={() => setMoreMenuVisible((v) => !v)}
+                    style={styles.iconBtn}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityLabel="More options"
+                  >
+                    <Text style={styles.iconBtnText}>⋯</Text>
+                  </ChromeButton>
+                </BlurView>
+
+                {moreMenuVisible && file && (
+                  <Animated.View
+                    entering={FadeIn.duration(120)}
+                    style={styles.moreMenu}
+                  >
+                    <BlurView
+                      intensity={55}
+                      tint="dark"
+                      experimentalBlurMethod="dimezisBlurView"
+                      style={styles.moreMenuBlur}
+                    >
+                      <ChromeButton
+                        style={styles.moreMenuItem}
+                        accessibilityLabel="Move to Album"
+                        onPress={() => {
+                          setMoreMenuVisible(false);
+                          onOpenMoveSheet(file);
+                        }}
+                      >
+                        <Text style={styles.moreMenuItemText}>
+                          Move to Album
+                        </Text>
+                      </ChromeButton>
+                      <View style={styles.moreMenuDivider} />
+                      <ChromeButton
+                        style={styles.moreMenuItem}
+                        accessibilityLabel="Add Tags"
+                        onPress={() => {
+                          setMoreMenuVisible(false);
+                          onOpenTagSheet(file);
+                        }}
+                      >
+                        <Text style={styles.moreMenuItemText}>Add Tags</Text>
+                      </ChromeButton>
+                      <View style={styles.moreMenuDivider} />
+                      <ChromeButton
+                        style={styles.moreMenuItem}
+                        accessibilityLabel="Delete"
+                        haptic={Haptics.ImpactFeedbackStyle.Medium}
+                        onPress={() => {
+                          setMoreMenuVisible(false);
+                          onDelete(file);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.moreMenuItemText,
+                            styles.moreMenuItemDestructive,
+                          ]}
+                        >
+                          Delete
+                        </Text>
+                      </ChromeButton>
+                    </BlurView>
+                  </Animated.View>
+                )}
               </View>
 
-              {/* Bottom hint */}
-              <View style={styles.hintRow} pointerEvents="none">
-                <View style={styles.hintPill}>
-                  <Text style={styles.hintText}>
-                    Pinch · Double-tap · Swipe down to close
-                  </Text>
+              {/* Bottom bar — filename, date, size, album, tags */}
+              {file && (
+                <View style={styles.bottomBarWrap} pointerEvents="none">
+                  <BlurView
+                    intensity={40}
+                    tint="dark"
+                    experimentalBlurMethod="dimezisBlurView"
+                    style={styles.bottomBar}
+                  >
+                    <Text style={styles.bottomFileName} numberOfLines={1}>
+                      {file.displayName ?? file.name.replace(".vault", "")}
+                    </Text>
+                    <Text style={styles.bottomMeta} numberOfLines={1}>
+                      {formatFullDate(file.createdAt * 1000)}
+                      {"  ·  "}
+                      {formatFileSize(file.size)}
+                      {file.album ? `  ·  ${file.album}` : ""}
+                    </Text>
+                    {file.tags.length > 0 && (
+                      <View style={styles.bottomTagRow}>
+                        {file.tags.slice(0, 4).map((tag) => (
+                          <View key={tag} style={styles.bottomTagChip}>
+                            <Text
+                              style={styles.bottomTagChipText}
+                              numberOfLines={1}
+                            >
+                              #{tag}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </BlurView>
                 </View>
-              </View>
+              )}
             </Animated.View>
           </GestureHandlerRootView>
         </View>
@@ -522,87 +867,145 @@ const styles = StyleSheet.create({
     height: SCREEN.height,
   } as ViewStyle,
 
-  chromeLayer: {
-    justifyContent: "space-between",
-    paddingBottom: 48,
+  slowLoadIndicator: {
+    position: "absolute",
+    top: "50%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    marginTop: -12,
   } as ViewStyle,
 
-  // Header — glassmorphic monochrome pill
-  header: {
+  chromeLayer: {
+    justifyContent: "space-between",
+  } as ViewStyle,
+
+  // Top bar — real frosted glass (BlurView), back / favorite / more
+  topBarWrap: {
     paddingTop: Platform.OS === "ios" ? 56 : 40,
     paddingHorizontal: 16,
   } as ViewStyle,
 
-  headerGlass: {
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
-    backgroundColor: "rgba(12,12,12,0.72)",
-    // Subtle inner highlight on top edge
-    shadowColor: "#fff",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 0,
-    gap: 10,
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 4,
+    // Safety-net tint under the blur — some Android devices render a
+    // weaker native blur, so this keeps the frosted-dark look consistent.
+    backgroundColor: "rgba(10,10,10,0.35)",
   } as ViewStyle,
 
-  lockDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    flexShrink: 0,
-  } as ViewStyle,
+  topBarSpacer: { flex: 1 } as ViewStyle,
 
-  fileName: {
-    flex: 1,
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  } as TextStyle,
-
-  closeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(255,255,255,0.07)",
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
   } as ViewStyle,
 
-  closeBtnText: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 14,
+  iconBtnText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 20,
+    fontWeight: "600",
   } as TextStyle,
 
-  // Bottom hint
-  hintRow: {
-    alignItems: "center",
-  } as ViewStyle,
+  iconBtnTextActive: {
+    color: "#fff",
+  } as TextStyle,
 
-  hintPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.05)",
+  // More menu — small frosted popover under the top bar
+  moreMenu: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 104 : 88,
+    right: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,255,255,0.10)",
+    overflow: "hidden",
+    minWidth: 168,
   } as ViewStyle,
 
-  hintText: {
-    color: "rgba(255,255,255,0.35)",
-    fontSize: 11,
-    letterSpacing: 0.3,
+  moreMenuBlur: {
+    paddingVertical: 4,
+    backgroundColor: "rgba(10,10,10,0.5)",
+  } as ViewStyle,
+
+  moreMenuItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  } as ViewStyle,
+
+  moreMenuItemText: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 14,
     fontWeight: "500",
+  } as TextStyle,
+
+  moreMenuItemDestructive: {
+    color: "rgba(255,120,120,0.9)",
+  } as TextStyle,
+
+  moreMenuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.10)",
+    marginHorizontal: 12,
+  } as ViewStyle,
+
+  // Bottom bar — real frosted glass, filename + metadata + tags
+  bottomBarWrap: {
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+  } as ViewStyle,
+
+  bottomBar: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    overflow: "hidden",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    gap: 4,
+    backgroundColor: "rgba(10,10,10,0.35)",
+  } as ViewStyle,
+
+  bottomFileName: {
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+  } as TextStyle,
+
+  bottomMeta: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    letterSpacing: 0.1,
+  } as TextStyle,
+
+  bottomTagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 6,
+  } as ViewStyle,
+
+  bottomTagChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    maxWidth: 120,
+  } as ViewStyle,
+
+  bottomTagChipText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
   } as TextStyle,
 });
