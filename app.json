@@ -11,6 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0a"
     },
+    "web": {
+      "bundler": "metro"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.himanshu.obsidian",

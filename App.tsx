@@ -9,6 +9,7 @@ import SettingsScreen from "./screens/SettingsScreen";
 import { Colors, Typography, Spacing, Radius } from "./utils/design";
 import { activate as activateScreenSecurity } from "./services/ScreenSecurityService";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import "./global.css";
 
 function AppNavigator() {
   const {
