@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     height: 20,
   },
 
-  // ΓöÇΓöÇ Biometric offer (post-setup) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  //Biometric offer (post-setup) 
   biometricOffer: {
     width: "100%",
     alignItems: "center",
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     letterSpacing: Typography.wide,
   } as TextStyle,
 
-  // ΓöÇΓöÇ Biometric unlock button (enter step) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  //Biometric unlock button (enter step)
   biometricBtn: {
     flexDirection: "row",
     alignItems: "center",
