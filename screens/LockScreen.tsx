@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, Text, TextStyle, View } from "react-native";
 import Animated, {
   Easing,
   FadeInDown,
   SharedValue,
-  runOnJS,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
@@ -12,12 +11,12 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
-  cancelAnimation,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { PasscodeInput } from "../components/PasscodeInput";
 import { Typography } from "../utils/design";
 import { useAuth } from "../hooks/useAuth";
+import { useUnlockTransition } from "../hooks/useUnlockTransition";
 import { UNLOCK_LAYER_WINDOWS, unlockLayerProgress } from "../utils/unlockLayers";
 
 // 'biometric' = post-setup offer screen
@@ -131,7 +130,6 @@ export default function LockScreen({
 }: LockScreenProps) {
   const {
     isSetup,
-    isUnlocked,
     unlock,
     setup,
     biometricEnabled,
@@ -150,52 +148,22 @@ export default function LockScreen({
   // Single spring drives the entire choreography; every layer (glow,
   // wordmark here, dots/keypad inside PasscodeInput) reads the same value
   // through its own UNLOCK_LAYER_WINDOWS slice, so they can stagger for
-  // depth without ever drifting out of sync with each other.
-  const unlockProgress = useSharedValue(0);
-  // Guards against ever starting the sequence twice (rapid double-tap on
-  // the biometric button, or any other double-invocation).
-  const hasUnlockedRef = useRef(false);
-  // Read from a UI-thread spring callback, so it must be a shared value,
-  // not a plain ref — a ref's `.current` wouldn't reflect live JS-thread
-  // state inside a worklet. Set false on unmount so a completion callback
-  // arriving after this screen is gone can't call back into a dead parent.
-  const isMountedShared = useSharedValue(true);
-
-  useEffect(() => {
-    return () => {
-      isMountedShared.value = false;
-      cancelAnimation(unlockProgress);
-    };
-  }, []);
-
-  // If the app re-locks while this exact LockScreen instance is still
-  // mounted (e.g. backgrounded mid-transition with "lock on background"
-  // enabled, then relocked before onUnlockTransitionEnd ever fired) —
-  // hasUnlockedRef and unlockProgress must reset, or the NEXT correct
-  // passcode/biometric attempt would see hasUnlockedRef already true and
-  // silently no-op forever, locking the user out until app restart.
-  useEffect(() => {
-    if (!isUnlocked) {
-      hasUnlockedRef.current = false;
-      cancelAnimation(unlockProgress);
-      unlockProgress.value = 0;
-    }
-  }, [isUnlocked]);
-
-  const runUnlockSequence = useCallback(() => {
-    if (hasUnlockedRef.current) return; // never fire twice
-    hasUnlockedRef.current = true;
-    onUnlockTransitionStart();
-    unlockProgress.value = withSpring(
-      1,
-      { damping: 20, stiffness: 180 },
-      (finished) => {
-        if (finished && isMountedShared.value) {
-          runOnJS(onUnlockTransitionEnd)();
-        }
-      },
-    );
-  }, [onUnlockTransitionStart, onUnlockTransitionEnd]);
+  // depth without ever drifting out of sync with each other. The guard/
+  // mount/relock-reset lifecycle around unlockProgress lives in
+  // useUnlockTransition (shared with CamouflageCalculator); only the
+  // animation shape itself (spring, damping/stiffness) is specified here.
+  const driveProgress = useCallback(
+    (progress: SharedValue<number>, onFinished: (finished?: boolean) => void) => {
+      progress.value = withSpring(1, { damping: 20, stiffness: 180 }, onFinished);
+    },
+    [],
+  );
+  const { unlockProgress, hasUnlockedRef, runUnlockSequence } =
+    useUnlockTransition({
+      onUnlockTransitionStart,
+      onUnlockTransitionEnd,
+      driveProgress,
+    });
 
   const showError = useCallback((msg: string) => {
     setErrorMsg(msg);

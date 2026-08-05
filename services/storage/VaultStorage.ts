@@ -62,16 +62,26 @@ export class VaultStorage {
 
   // ── Passcode ─────────────────────────────────────────────────────────────
 
+  // Memoizes the SecureStore read for the stored hash. `undefined` = not yet
+  // read this instance's lifetime; `null` = read, and no passcode is set.
+  // Purely an internal read-path optimization — the public API surface
+  // (verifyPasscode/savePasscodeHash signatures) is unchanged, so callers
+  // never know this cache exists. Kept in sync by savePasscodeHash below.
+  private cachedHash: string | null | undefined = undefined;
+
   async savePasscodeHash(passcode: string): Promise<void> {
     const hash = await hashPasscode(passcode, this.context);
     await SecureStore.setItemAsync(this.keyPasscodeHash, hash);
+    this.cachedHash = hash;
   }
 
   async verifyPasscode(passcode: string): Promise<boolean> {
-    const stored = await SecureStore.getItemAsync(this.keyPasscodeHash);
-    if (!stored) return false;
+    if (this.cachedHash === undefined) {
+      this.cachedHash = await SecureStore.getItemAsync(this.keyPasscodeHash);
+    }
+    if (!this.cachedHash) return false;
     const hash = await hashPasscode(passcode, this.context);
-    return hash === stored;
+    return hash === this.cachedHash;
   }
 
   async hasPasscode(): Promise<boolean> {

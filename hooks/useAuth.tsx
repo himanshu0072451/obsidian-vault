@@ -54,6 +54,15 @@ interface AuthState {
    */
   unlock: (passcode: string) => Promise<VaultContext | null>;
 
+  /**
+   * Lightweight check: does this candidate match a configured passcode
+   * (real or decoy)? No session state changes — safe to call on every
+   * keystroke of a hot input path (e.g. Camouflage Mode's calculator).
+   * Callers that get `true` back should follow up with the real `unlock()`
+   * to actually establish the session.
+   */
+  quickCheckPasscode: (candidate: string) => Promise<boolean>;
+
   /** Set up the real vault passcode for the first time. */
   setup: (passcode: string) => Promise<void>;
 
@@ -97,6 +106,10 @@ interface AuthState {
   setLockOnBackground: (value: boolean) => Promise<void>;
   suppressBackgroundLock: () => void;
   resumeBackgroundLock: () => void;
+
+  /** Whether Camouflage Mode (Calculator disguise) is enabled. */
+  camouflageModeEnabled: boolean;
+  setCamouflageModeEnabled: (value: boolean) => Promise<void>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -119,6 +132,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // In-memory only — resets on every app open, so offer shows once per session until enabled
   const [skippedBiometricOffer, setSkippedBiometricOffer] = useState(false);
   const [lockOnBackground, setLockOnBackgroundState] = useState(false);
+  const [camouflageModeEnabled, setCamouflageModeEnabledState] =
+    useState(false);
   const isUnlockedRef = useRef(false);
   const suppressLockRef = useRef(false);
 
@@ -134,14 +149,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isBiometricEnabled(),
       getBiometricAvailability(),
       SecureStore.getItemAsync("vault_lock_on_bg"),
-    ]).then(([hasReal, hasDec, bioEnabled, bioAvail, lockBgRaw]) => {
-      setIsSetup(hasReal);
-      setHasDecoy(hasDec);
-      setBiometricEnabled(bioEnabled);
-      setBiometricAvailability(bioAvail);
-      setLockOnBackgroundState(lockBgRaw === "true");
-      setIsLoading(false);
-    });
+      SecureStore.getItemAsync("vault_camouflage_mode"),
+    ]).then(
+      ([hasReal, hasDec, bioEnabled, bioAvail, lockBgRaw, camouflageRaw]) => {
+        setIsSetup(hasReal);
+        setHasDecoy(hasDec);
+        setBiometricEnabled(bioEnabled);
+        setBiometricAvailability(bioAvail);
+        setLockOnBackgroundState(lockBgRaw === "true");
+        setCamouflageModeEnabledState(camouflageRaw === "true");
+        setIsLoading(false);
+      },
+    );
   }, []);
 
   // ── unlock ────────────────────────────────────────────────────────────────
@@ -171,6 +190,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return null;
+    },
+    [hasDecoy],
+  );
+
+  // ── quickCheckPasscode ───────────────────────────────────────────────────
+
+  const quickCheckPasscode = useCallback(
+    async (candidate: string): Promise<boolean> => {
+      const [realMatch, decoyMatch] = await Promise.all([
+        realVault.verifyPasscode(candidate),
+        hasDecoy ? decoyVault.verifyPasscode(candidate) : Promise.resolve(false),
+      ]);
+      return realMatch || decoyMatch;
     },
     [hasDecoy],
   );
@@ -302,6 +334,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const setCamouflageModeEnabled = useCallback(
+    async (value: boolean): Promise<void> => {
+      await SecureStore.setItemAsync(
+        "vault_camouflage_mode",
+        value ? "true" : "false",
+      );
+      setCamouflageModeEnabledState(value);
+    },
+    [],
+  );
+
   const suppressBackgroundLock = useCallback(() => {
     suppressLockRef.current = true;
   }, []);
@@ -320,6 +363,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         vaultContext,
         activeVault,
         unlock,
+        quickCheckPasscode,
         setup,
         setupDecoy,
         hasDecoy,
@@ -336,6 +380,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLockOnBackground,
         suppressBackgroundLock,
         resumeBackgroundLock,
+        camouflageModeEnabled,
+        setCamouflageModeEnabled,
       }}
     >
       {children}

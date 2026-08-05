@@ -12,6 +12,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import LockScreen from "./screens/LockScreen";
+import CamouflageCalculator from "./screens/CamouflageCalculator";
 import HomeScreen from "./screens/HomeScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import { Colors, Typography, Spacing, Radius } from "./utils/design";
@@ -59,6 +60,7 @@ function AppNavigator() {
     skipBiometricOffer,
     skippedBiometricOffer,
     vaultContext,
+    camouflageModeEnabled,
   } = useAuth();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -158,13 +160,23 @@ function AppNavigator() {
       )}
       {/* Locked (normal case, fills the whole screen) OR mid-transition
           (overlaid on top of HomeScreen via absoluteFill, running its own
-          exit choreography — see LockScreen's runUnlockSequence). */}
+          exit choreography). Camouflage Mode swaps in the Calculator
+          disguise instead of LockScreen — both share the identical
+          onUnlockTransitionStart/End contract, so no other routing logic
+          changes. */}
       {(!isUnlocked || isUnlockTransitioning) && (
         <View style={StyleSheet.absoluteFill}>
-          <LockScreen
-            onUnlockTransitionStart={handleUnlockTransitionStart}
-            onUnlockTransitionEnd={handleUnlockTransitionEnd}
-          />
+          {camouflageModeEnabled ? (
+            <CamouflageCalculator
+              onUnlockTransitionStart={handleUnlockTransitionStart}
+              onUnlockTransitionEnd={handleUnlockTransitionEnd}
+            />
+          ) : (
+            <LockScreen
+              onUnlockTransitionStart={handleUnlockTransitionStart}
+              onUnlockTransitionEnd={handleUnlockTransitionEnd}
+            />
+          )}
         </View>
       )}
       {isUnlocked && !isUnlockTransitioning && showSettings && vaultContext === "real" && (

@@ -52,6 +52,8 @@ export default function SettingsScreen({
     disableBiometrics,
     lockOnBackground,
     setLockOnBackground,
+    camouflageModeEnabled,
+    setCamouflageModeEnabled,
     changePasscode,
     vaultContext,
   } = useAuth();
@@ -199,6 +201,25 @@ export default function SettingsScreen({
             <Switch
               value={lockOnBackground}
               onValueChange={setLockOnBackground}
+              trackColor={{ false: Colors.midDark, true: Colors.silver }}
+              thumbColor={Colors.white}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Camouflage Mode */}
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <Text style={styles.rowTitle}>Camouflage Mode</Text>
+              <Text style={styles.rowSubtitle}>
+                Disguise the vault as a Calculator until your passcode is
+                typed
+              </Text>
+            </View>
+            <Switch
+              value={camouflageModeEnabled}
+              onValueChange={setCamouflageModeEnabled}
               trackColor={{ false: Colors.midDark, true: Colors.silver }}
               thumbColor={Colors.white}
             />
