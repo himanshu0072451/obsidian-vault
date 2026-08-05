@@ -2,7 +2,7 @@
  * SettingsScreen — V1 settings for ImageVault.
  *
  * Sections:
- *   Security  — Biometric toggle, Lock on Background, Change Passcode
+ *   Security  — Biometric toggle, Lock on Background, Camouflage Mode, Change Passcode
  *   Vault     — Storage statistics, Rebuild Index
  *   About     — App version
  *
@@ -18,14 +18,12 @@ import {
   Pressable,
   Switch,
   StyleSheet,
-  ViewStyle,
-  TextStyle,
   Alert,
   ActivityIndicator,
 } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import { useAuth, useVault } from "../hooks/useAuth";
 import { ChangePasscodeSheet } from "../components/ChangePasscodeSheet";
 import { StatsSheet } from "../components/StatsSheet";
@@ -37,6 +35,81 @@ interface SettingsScreenProps {
   onClose: () => void;
   /** Called after Rebuild Index completes so HomeScreen can resync allFiles. */
   onIndexRebuilt: () => void;
+}
+
+// ─── SettingsRow ────────────────────────────────────────────────────────────
+// One consistent row shape for every setting: a small monochrome icon chip,
+// title/subtitle, and a right-hand accessory (switch, chevron, value, or
+// loading spinner). Rows with no onPress render as a plain View — press
+// feedback only ever appears where a tap actually does something.
+
+interface SettingsRowProps {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  title: string;
+  subtitle?: string;
+  disabled?: boolean;
+  muted?: boolean;
+  onPress?: () => void;
+  right?: React.ReactNode;
+}
+
+function SettingsRow({
+  icon,
+  title,
+  subtitle,
+  disabled,
+  muted,
+  onPress,
+  right,
+}: SettingsRowProps) {
+  const body = (
+    <View
+      className={`flex-row items-center gap-3 px-4 py-4 ${disabled ? "opacity-40" : ""}`}
+    >
+      <View className="h-9 w-9 items-center justify-center rounded-full bg-white/[0.06]">
+        <Feather
+          name={icon}
+          size={17}
+          color={muted ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.75)"}
+        />
+      </View>
+      <View className="flex-1 gap-0.5">
+        <Text
+          className={`text-[15px] font-medium ${muted ? "text-white/50" : "text-white"}`}
+        >
+          {title}
+        </Text>
+        {subtitle && (
+          <Text className="text-[13px] leading-[17px] text-white/40">
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      {right}
+    </View>
+  );
+
+  if (!onPress) return body;
+
+  return (
+    <Pressable
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      className="active:bg-white/[0.05]"
+      accessibilityRole="button"
+      accessibilityLabel={title}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
+function RowDivider() {
+  return <View className="ml-16 h-px bg-white/[0.08]" />;
+}
+
+function Chevron() {
+  return <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.3)" />;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -143,174 +216,156 @@ export default function SettingsScreen({
     return `${(bytes / 1_048_576).toFixed(1)} MB`;
   }
 
+  const switchProps = {
+    trackColor: { false: "#242424", true: "#aaaaaa" },
+    thumbColor: "#f5f5f5",
+    style: { transform: [{ scale: 0.9 }] },
+  } as const;
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <Animated.View entering={FadeIn.duration(200)} style={styles.root}>
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center justify-between border-b border-white/[0.08] px-5 pb-6 pt-12">
         <Pressable
           onPress={onClose}
-          style={styles.closeBtn}
+          hitSlop={8}
+          className="h-9 w-9 items-center justify-center rounded-full active:bg-white/[0.06]"
           accessibilityRole="button"
           accessibilityLabel="Close settings"
         >
-          <Text style={styles.closeBtnText}>✕</Text>
+          <Feather name="x" size={20} color="rgba(255,255,255,0.7)" />
         </Pressable>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.closeBtn} />
+        <Text className="text-[17px] font-semibold tracking-tight text-white">
+          Settings
+        </Text>
+        <View className="h-9 w-9" />
       </View>
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+        className="flex-1"
+        contentContainerClassName="gap-1 p-6 pb-16"
         showsVerticalScrollIndicator={false}
       >
         {/* ── Security ─────────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>Security</Text>
-        <View style={styles.card}>
-          {/* Biometric toggle */}
-          <View style={[styles.row, !biometricAvailable && styles.rowDisabled]}>
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowTitle}>{biometricLabel}</Text>
-              <Text style={styles.rowSubtitle}>
-                {biometricAvailable
-                  ? "Unlock without typing your passcode"
-                  : "Not available on this device"}
-              </Text>
-            </View>
-            <Switch
-              value={biometricEnabled}
-              onValueChange={handleBiometricToggle}
-              disabled={!biometricAvailable}
-              trackColor={{ false: Colors.midDark, true: Colors.silver }}
-              thumbColor={Colors.white}
-            />
-          </View>
+        <Text className="mb-1 mt-2 px-1 text-[11px] font-semibold uppercase tracking-[2px] text-white/35">
+          Security
+        </Text>
+        <View className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#161616]">
+          <SettingsRow
+            icon="eye"
+            title={biometricLabel}
+            subtitle={
+              biometricAvailable
+                ? "Unlock without typing your passcode"
+                : "Not available on this device"
+            }
+            disabled={!biometricAvailable}
+            right={
+              <Switch
+                value={biometricEnabled}
+                onValueChange={handleBiometricToggle}
+                disabled={!biometricAvailable}
+                {...switchProps}
+              />
+            }
+          />
 
-          <View style={styles.divider} />
+          <RowDivider />
 
-          {/* Lock on Background */}
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowTitle}>Lock on Background</Text>
-              <Text style={styles.rowSubtitle}>
-                Lock vault when you switch apps
-              </Text>
-            </View>
-            <Switch
-              value={lockOnBackground}
-              onValueChange={setLockOnBackground}
-              trackColor={{ false: Colors.midDark, true: Colors.silver }}
-              thumbColor={Colors.white}
-            />
-          </View>
+          <SettingsRow
+            icon="lock"
+            title="Lock on Background"
+            subtitle="Lock vault when you switch apps"
+            right={
+              <Switch
+                value={lockOnBackground}
+                onValueChange={setLockOnBackground}
+                {...switchProps}
+              />
+            }
+          />
 
-          <View style={styles.divider} />
+          <RowDivider />
 
-          {/* Camouflage Mode */}
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowTitle}>Camouflage Mode</Text>
-              <Text style={styles.rowSubtitle}>
-                Disguise the vault as a Calculator until your passcode is
-                typed
-              </Text>
-            </View>
-            <Switch
-              value={camouflageModeEnabled}
-              onValueChange={setCamouflageModeEnabled}
-              trackColor={{ false: Colors.midDark, true: Colors.silver }}
-              thumbColor={Colors.white}
-            />
-          </View>
+          <SettingsRow
+            icon="eye-off"
+            title="Camouflage Mode"
+            subtitle="Disguise the vault as a Calculator until your passcode is typed"
+            right={
+              <Switch
+                value={camouflageModeEnabled}
+                onValueChange={setCamouflageModeEnabled}
+                {...switchProps}
+              />
+            }
+          />
 
-          <View style={styles.divider} />
+          <RowDivider />
 
-          {/* Change Passcode */}
-          <Pressable
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+          <SettingsRow
+            icon="key"
+            title="Change Passcode"
+            subtitle="Update your 6-digit vault passcode"
             onPress={() => setShowChangePasscode(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Change passcode"
-          >
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowTitle}>Change Passcode</Text>
-              <Text style={styles.rowSubtitle}>
-                Update your 6-digit vault passcode
-              </Text>
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
+            right={<Chevron />}
+          />
         </View>
 
         {/* ── Vault ────────────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>Vault</Text>
-        <View style={styles.card}>
-          {/* Storage statistics — tap to open full stats */}
-          <Pressable
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        <Text className="mb-1 mt-8 px-1 text-[11px] font-semibold uppercase tracking-[2px] text-white/35">
+          Vault
+        </Text>
+        <View className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#161616]">
+          <SettingsRow
+            icon="hard-drive"
+            title="Storage"
+            subtitle={
+              stats === null
+                ? undefined
+                : `${stats.files} file${stats.files === 1 ? "" : "s"}  ·  ${formatSize(stats.size)}  ·  ${stats.albums.size} album${stats.albums.size === 1 ? "" : "s"}  ·  ${stats.tags} tag${stats.tags === 1 ? "" : "s"}`
+            }
             onPress={() => setShowStats(true)}
-            accessibilityRole="button"
-            accessibilityLabel="View storage statistics"
-          >
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowTitle}>Storage</Text>
-              {stats === null ? (
-                <ActivityIndicator
-                  size="small"
-                  color={Colors.textMuted}
-                  style={{ marginTop: 4 }}
-                />
+            right={
+              stats === null ? (
+                <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
               ) : (
-                <Text style={styles.rowSubtitle}>
-                  {`${stats.files} file${stats.files === 1 ? "" : "s"}  ·  ${formatSize(stats.size)}  ·  ${stats.albums.size} album${stats.albums.size === 1 ? "" : "s"}  ·  ${stats.tags} tag${stats.tags === 1 ? "" : "s"}`}
-                </Text>
-              )}
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
+                <Chevron />
+              )
+            }
+          />
 
-          <View style={styles.divider} />
+          <RowDivider />
 
-          {/* Rebuild Index */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.row,
-              pressed && styles.rowPressed,
-              rebuilding && styles.rowDisabled,
-            ]}
-            onPress={rebuilding ? undefined : handleRebuildIndex}
-            accessibilityRole="button"
-            accessibilityLabel="Rebuild vault index"
+          <SettingsRow
+            icon="refresh-cw"
+            title="Rebuild Vault Index"
+            subtitle="Rescan all files from disk (tags will be lost)"
+            muted
             disabled={rebuilding}
-          >
-            <View style={styles.rowLeft}>
-              <Text style={[styles.rowTitle, styles.destructiveText]}>
-                Rebuild Vault Index
-              </Text>
-              <Text style={styles.rowSubtitle}>
-                Rescan all files from disk (tags will be lost)
-              </Text>
-            </View>
-            {rebuilding ? (
-              <ActivityIndicator size="small" color={Colors.textMuted} />
-            ) : (
-              <Text style={styles.chevron}>›</Text>
-            )}
-          </Pressable>
+            onPress={rebuilding ? undefined : handleRebuildIndex}
+            right={
+              rebuilding ? (
+                <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+              ) : (
+                <Chevron />
+              )
+            }
+          />
         </View>
 
         {/* ── About ────────────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>About</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.rowTitle}>Version</Text>
-            <Text style={styles.rowValue}>{version}</Text>
-          </View>
+        <Text className="mb-1 mt-8 px-1 text-[11px] font-semibold uppercase tracking-[2px] text-white/35">
+          About
+        </Text>
+        <View className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#161616]">
+          <SettingsRow
+            icon="info"
+            title="Version"
+            right={<Text className="text-[15px] text-white/40">{version}</Text>}
+          />
         </View>
-
-        <View style={styles.bottomPad} />
       </ScrollView>
 
       {/* Change Passcode overlay — stacked above this screen */}
@@ -329,6 +384,9 @@ export default function SettingsScreen({
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
+// Only the root wrapper needs a plain style object — it's an Animated.View
+// (react-native-reanimated), which NativeWind's className doesn't intercept
+// (only core RN components like View/Text/Pressable are auto-registered).
 
 const styles = StyleSheet.create({
   root: {
@@ -337,114 +395,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: Colors.background,
+    backgroundColor: "#0a0a0a",
     zIndex: 100,
     elevation: 100,
-  } as ViewStyle,
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing["2xl"],
-    paddingBottom: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  } as ViewStyle,
-
-  headerTitle: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.bold,
-    color: Colors.text,
-    letterSpacing: Typography.tight,
-  } as TextStyle,
-
-  closeBtn: { width: 40 } as ViewStyle,
-  closeBtnText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-  } as TextStyle,
-
-  scroll: { flex: 1 } as ViewStyle,
-  content: {
-    padding: Spacing.lg,
-    gap: Spacing.xs,
-    paddingBottom: Spacing["3xl"],
-  } as ViewStyle,
-
-  sectionLabel: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.semibold,
-    color: Colors.textMuted,
-    letterSpacing: Typography.widest,
-    textTransform: "uppercase",
-    paddingHorizontal: Spacing.xs,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.xs,
-  } as TextStyle,
-
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: "hidden",
-  } as ViewStyle,
-
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  } as ViewStyle,
-
-  rowPressed: {
-    backgroundColor: Colors.midDark,
-  } as ViewStyle,
-
-  rowDisabled: {
-    opacity: 0.5,
-  } as ViewStyle,
-
-  rowLeft: {
-    flex: 1,
-    gap: 3,
-  } as ViewStyle,
-
-  rowTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.medium,
-    color: Colors.text,
-  } as TextStyle,
-
-  rowSubtitle: {
-    fontSize: Typography.sm,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  } as TextStyle,
-
-  rowValue: {
-    fontSize: Typography.base,
-    color: Colors.textMuted,
-  } as TextStyle,
-
-  chevron: {
-    fontSize: 20,
-    color: Colors.textMuted,
-  } as TextStyle,
-
-  destructiveText: {
-    color: Colors.lightGray,
-  } as TextStyle,
-
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginLeft: Spacing.lg,
-  } as ViewStyle,
-
-  bottomPad: { height: Spacing.xl } as ViewStyle,
+  },
 });
