@@ -8,6 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0a"
     },
@@ -21,11 +22,13 @@
         "NSCameraUsageDescription": "Image Vault uses the camera to capture photos that are encrypted immediately and never saved to your gallery.",
         "NSFaceIDUsageDescription": "Image Vault uses Face ID to unlock your vault.",
         "NSPhotoLibraryUsageDescription": "Image Vault needs access to your photo library to encrypt and decrypt images.",
-        "NSPhotoLibraryAddUsageDescription": "Image Vault needs permission to save decrypted images to your photo library."
+        "NSPhotoLibraryAddUsageDescription": "Image Vault needs permission to save decrypted images to your photo library.",
+        "buildNumber": "1"
       }
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0a0a"
       },
       "package": "com.himanshu.obsidian",
@@ -33,9 +36,10 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
-      ]
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
+      "edgeToEdgeEnabled": true,
+      "versionCode": 1
     },
     "plugins": [
       "expo-secure-store",
