@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 import { PasscodeInput } from "../components/PasscodeInput";
 import { Typography } from "../utils/design";
 import { useAuth } from "../hooks/useAuth";
@@ -167,6 +168,7 @@ export default function LockScreen({
 
   const showError = useCallback((msg: string) => {
     setErrorMsg(msg);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     errorOpacity.value = withSequence(
       withTiming(1, { duration: 150 }),
       withTiming(1, { duration: 1500 }),

@@ -9,7 +9,7 @@
  * Purely controlled — no internal state.
  */
 
-import React, { memo } from "react";
+import React, { memo, useCallback, useEffect } from "react";
 import {
   ScrollView,
   View,
@@ -19,6 +19,14 @@ import {
   ViewStyle,
   TextStyle,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  interpolateColor,
+} from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,20 +112,67 @@ interface ChipProps {
 }
 
 function Chip({ label, active, onPress }: ChipProps) {
+  const scale = useSharedValue(1);
+  const activeProgress = useSharedValue(active ? 1 : 0);
+
+  useEffect(() => {
+    activeProgress.value = withTiming(active ? 1 : 0, { duration: 180 });
+  }, [active]);
+
+  const chipStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    backgroundColor: interpolateColor(
+      activeProgress.value,
+      [0, 1],
+      [Colors.surface, Colors.white],
+    ),
+    borderColor: interpolateColor(
+      activeProgress.value,
+      [0, 1],
+      [Colors.border, Colors.white],
+    ),
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      activeProgress.value,
+      [0, 1],
+      [Colors.textSecondary, Colors.black],
+    ),
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.94, { damping: 18, stiffness: 320 });
+  }, []);
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, { damping: 18, stiffness: 320 });
+  }, []);
+  const handlePress = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    onPress();
+  }, [onPress]);
+
   return (
     <Pressable
-      onPress={onPress}
-      style={[styles.chip, active && styles.chipActive]}
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
     >
-      <Text
-        style={[styles.chipText, active && styles.chipTextActive]}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
+      <Animated.View style={[styles.chip, chipStyle]}>
+        <Animated.Text
+          style={[
+            styles.chipText,
+            active && styles.chipTextActiveWeight,
+            textStyle,
+          ]}
+          numberOfLines={1}
+        >
+          {label}
+        </Animated.Text>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -150,11 +205,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   } as ViewStyle,
 
-  chipActive: {
-    backgroundColor: Colors.white,
-    borderColor: Colors.white,
-  } as ViewStyle,
-
   chipText: {
     fontSize: Typography.xs,
     fontWeight: Typography.medium,
@@ -162,8 +212,7 @@ const styles = StyleSheet.create({
     letterSpacing: Typography.wide,
   } as TextStyle,
 
-  chipTextActive: {
-    color: Colors.black,
+  chipTextActiveWeight: {
     fontWeight: Typography.semibold,
   } as TextStyle,
 

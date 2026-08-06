@@ -19,7 +19,8 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, useSharedValue } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { PasscodeInput } from './PasscodeInput';
 import { Colors, Typography, Spacing, Radius } from '../utils/design';
 
@@ -40,6 +41,12 @@ export function ChangePasscodeSheet({
   const [currentPasscode, setCurrentPasscode] = useState('');
   const [newPasscode, setNewPasscode]     = useState('');
   const [error, setError]                 = useState<string | null>(null);
+
+  // This sheet has no unlock choreography of its own — PasscodeInput just
+  // requires the shared value to exist. Stays at 0 forever, so it has no
+  // visual effect (matches the prop's documented "harmless to always pass"
+  // contract).
+  const unlockProgress = useSharedValue(0);
 
   const reset = useCallback(() => {
     setStep('verify');
@@ -67,6 +74,7 @@ export function ChangePasscodeSheet({
 
   const handleConfirm = useCallback(async (entered: string) => {
     if (entered !== newPasscode) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       setError('Passcodes do not match. Try again.');
       setStep('enter');
       setNewPasscode('');
@@ -74,10 +82,12 @@ export function ChangePasscodeSheet({
     }
     const result = await onChangePasscode(currentPasscode, newPasscode);
     if (result === 'wrong_current') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       setError('Current passcode is incorrect.');
       reset();
       return;
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     reset();
     onClose();
   }, [currentPasscode, newPasscode, onChangePasscode, reset, onClose]);
@@ -91,7 +101,11 @@ export function ChangePasscodeSheet({
   }[step];
 
   return (
-    <Animated.View entering={FadeIn.duration(150)} style={styles.overlay}>
+    <Animated.View
+      entering={FadeIn.duration(150)}
+      exiting={FadeOut.duration(150)}
+      style={styles.overlay}
+    >
       {/* Header bar */}
       <View style={styles.header}>
         <Pressable onPress={handleClose} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel="Cancel">
@@ -109,10 +123,11 @@ export function ChangePasscodeSheet({
       )}
 
       <View style={styles.inputArea}>
+        <Text style={styles.stepLabel}>{config.label}</Text>
+        <Text style={styles.stepSublabel}>{config.sublabel}</Text>
         <PasscodeInput
-          label={config.label}
-          sublabel={config.sublabel}
           onComplete={config.onComplete}
+          unlockProgress={unlockProgress}
         />
       </View>
     </Animated.View>
@@ -162,5 +177,20 @@ const styles = StyleSheet.create({
   inputArea: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
   } as ViewStyle,
+  stepLabel: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    color: Colors.text,
+    letterSpacing: Typography.tight,
+    textAlign: 'center',
+    marginBottom: 6,
+  } as TextStyle,
+  stepSublabel: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
+  } as TextStyle,
 });

@@ -20,6 +20,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import { Button } from "./Button";
 
@@ -54,11 +55,13 @@ export function AlbumActionSheet({
 
   const handleConfirm = () => {
     if (mode === "delete") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       onConfirm(albumName ?? "");
       return;
     }
     const value = inputValue.trim();
     if (value.length === 0) return;
+    Haptics.selectionAsync().catch(() => {});
     onConfirm(value);
   };
 

@@ -5,6 +5,8 @@ import Animated, {
   useSharedValue,
   withTiming,
   withSpring,
+  withRepeat,
+  cancelAnimation,
   Easing,
 } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
@@ -32,6 +34,8 @@ export function ProgressOverlay({
   const barWidth = useSharedValue(0);
   const contentScale = useSharedValue(0.9);
   const contentOpacity = useSharedValue(0);
+  const spinRotation = useSharedValue(0);
+  const statusIconScale = useSharedValue(1);
 
   // console.log("ProgressOverlay", visible, status);
 
@@ -52,6 +56,25 @@ export function ProgressOverlay({
     });
   }, [progress]);
 
+  // The status glyph otherwise sits static while `status === "running"` —
+  // reads as frozen/broken despite the label implying work in progress.
+  useEffect(() => {
+    if (status === "running") {
+      spinRotation.value = withRepeat(
+        withTiming(360, { duration: 1400, easing: Easing.linear }),
+        -1,
+      );
+    } else {
+      cancelAnimation(spinRotation);
+      spinRotation.value = 0;
+    }
+    if (status === "success" || status === "error") {
+      statusIconScale.value = 0.5;
+      statusIconScale.value = withSpring(1, { damping: 12, stiffness: 260 });
+    }
+    return () => cancelAnimation(spinRotation);
+  }, [status]);
+
   const barStyle = useAnimatedStyle(() => ({
     width: `${barWidth.value * 100}%`,
   }));
@@ -59,6 +82,14 @@ export function ProgressOverlay({
   const contentStyle = useAnimatedStyle(() => ({
     transform: [{ scale: contentScale.value }],
     opacity: contentOpacity.value,
+  }));
+
+  const spinnerStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinRotation.value}deg` }],
+  }));
+
+  const statusIconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: statusIconScale.value }],
   }));
 
   const isDone = status === "success" || status === "error";
@@ -82,14 +113,24 @@ export function ProgressOverlay({
           <View style={styles.iconArea}>
             {status === "running" && (
               <View style={styles.spinnerRing}>
-                <Text style={styles.iconText}>⚙</Text>
+                <Animated.Text style={[styles.iconText, spinnerStyle]}>
+                  ⚙
+                </Animated.Text>
               </View>
             )}
             {status === "success" && (
-              <Text style={[styles.statusIcon, styles.successIcon]}>✓</Text>
+              <Animated.Text
+                style={[styles.statusIcon, styles.successIcon, statusIconStyle]}
+              >
+                ✓
+              </Animated.Text>
             )}
             {status === "error" && (
-              <Text style={[styles.statusIcon, styles.errorIcon]}>✕</Text>
+              <Animated.Text
+                style={[styles.statusIcon, styles.errorIcon, statusIconStyle]}
+              >
+                ✕
+              </Animated.Text>
             )}
           </View>
 

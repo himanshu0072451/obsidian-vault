@@ -30,6 +30,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -62,12 +63,19 @@ export function TagSheet({
   const handleAddFromInput = () => {
     const value = inputValue.trim();
     if (value.length === 0) return;
+    Haptics.selectionAsync().catch(() => {});
     onAddTag(value);
     setInputValue("");
   };
 
   const handleChipPress = (tag: string) => {
+    Haptics.selectionAsync().catch(() => {});
     onAddTag(tag);
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    Haptics.selectionAsync().catch(() => {});
+    onRemoveTag?.(tag);
   };
 
   const PREDEFINED_TAGS = [
@@ -114,7 +122,7 @@ export function TagSheet({
                         <Pressable
                           key={tag}
                           style={styles.currentChip}
-                          onPress={() => onRemoveTag?.(tag)}
+                          onPress={() => handleRemoveTag(tag)}
                           accessibilityRole="button"
                           accessibilityLabel={`Remove tag ${tag}`}
                         >

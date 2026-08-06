@@ -16,7 +16,7 @@ import {
   ViewStyle,
   TextStyle,
 } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import type { VaultFile } from "../services/storage";
 
@@ -129,7 +129,11 @@ export function FileDetailsSheet({
   const sizeLabel = formatFileSize(file.size);
 
   return (
-    <Animated.View entering={FadeIn.duration(150)} style={styles.overlay}>
+    <Animated.View
+      entering={FadeIn.duration(150)}
+      exiting={FadeOut.duration(150)}
+      style={styles.overlay}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerSpacer} />

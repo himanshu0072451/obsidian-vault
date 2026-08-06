@@ -21,6 +21,7 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import Animated, {
   FadeInDown,
+  FadeOutDown,
   FadeIn,
   FadeOut,
   LinearTransition,
@@ -29,6 +30,8 @@ import Animated, {
   withSpring,
   withTiming,
   withSequence,
+  interpolateColor,
+  runOnJS,
 } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import { useAuth, useVault } from "../hooks/useAuth";
@@ -40,6 +43,7 @@ import { decryptImage } from "../services/encryption";
 import { getDecryptedThumb } from "../services/thumbnailCache";
 import { LinearGradient } from "expo-linear-gradient";
 import * as FileSystem from "expo-file-system";
+import * as Haptics from "expo-haptics";
 import ImageViewer from "../components/ImageViewer";
 import { AlbumFilterBar } from "../components/AlbumFilterBar";
 import { AlbumActionSheet } from "../components/AlbumActionSheet";
@@ -222,7 +226,13 @@ const ListHeader = memo(function ListHeader({
             <Text style={styles.sectionTitle}>Vault Contents</Text>
             <View style={styles.sectionRule} />
             {visibleFiles.length > 0 && (
-              <Text style={styles.sectionCount}>{visibleFiles.length}</Text>
+              <Animated.Text
+                key={visibleFiles.length}
+                entering={FadeIn.duration(150)}
+                style={styles.sectionCount}
+              >
+                {visibleFiles.length}
+              </Animated.Text>
             )}
             <ViewModeToggle mode={viewMode} onChange={onSetViewMode} />
           </View>
@@ -271,18 +281,67 @@ interface ViewModeToggleProps {
   onChange: (mode: "list" | "grid") => void;
 }
 
+// Button width + inter-button gap — the sliding pill indicator travels
+// exactly this many px between the two positions. Kept as one constant so
+// the indicator's math and the layout styles below can never drift apart.
+const VIEW_TOGGLE_STEP = 30;
+
 const ViewModeToggle = memo(function ViewModeToggle({
   mode,
   onChange,
 }: ViewModeToggleProps) {
+  const indicatorX = useSharedValue(mode === "list" ? 0 : 1);
+  const listColorProgress = useSharedValue(mode === "list" ? 1 : 0);
+  const gridColorProgress = useSharedValue(mode === "grid" ? 1 : 0);
+
+  useEffect(() => {
+    indicatorX.value = withSpring(mode === "list" ? 0 : 1, {
+      damping: 20,
+      stiffness: 260,
+    });
+    listColorProgress.value = withTiming(mode === "list" ? 1 : 0, {
+      duration: 150,
+    });
+    gridColorProgress.value = withTiming(mode === "grid" ? 1 : 0, {
+      duration: 150,
+    });
+  }, [mode]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorX.value * VIEW_TOGGLE_STEP }],
+  }));
+
+  const listIconStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      listColorProgress.value,
+      [0, 1],
+      [Colors.textMuted, Colors.black],
+    ),
+  }));
+
+  const gridIconStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      gridColorProgress.value,
+      [0, 1],
+      [Colors.textMuted, Colors.black],
+    ),
+  }));
+
+  const handlePress = useCallback(
+    (next: "list" | "grid") => {
+      if (next === mode) return;
+      Haptics.selectionAsync().catch(() => {});
+      onChange(next);
+    },
+    [mode, onChange],
+  );
+
   return (
     <View style={styles.viewToggle}>
+      <Animated.View style={[styles.viewTogglePill, pillStyle]} />
       <Pressable
-        onPress={() => onChange("list")}
-        style={[
-          styles.viewToggleBtn,
-          mode === "list" && styles.viewToggleBtnActive,
-        ]}
+        onPress={() => handlePress("list")}
+        style={styles.viewToggleBtn}
         accessibilityRole="button"
         accessibilityLabel="List view"
         accessibilityState={{ selected: mode === "list" }}
@@ -290,22 +349,16 @@ const ViewModeToggle = memo(function ViewModeToggle({
       >
         <View style={styles.listIconCol}>
           {[0, 1, 2].map((i) => (
-            <View
+            <Animated.View
               key={i}
-              style={[
-                styles.listIconBar,
-                mode === "list" && styles.listIconBarActive,
-              ]}
+              style={[styles.listIconBar, listIconStyle]}
             />
           ))}
         </View>
       </Pressable>
       <Pressable
-        onPress={() => onChange("grid")}
-        style={[
-          styles.viewToggleBtn,
-          mode === "grid" && styles.viewToggleBtnActive,
-        ]}
+        onPress={() => handlePress("grid")}
+        style={styles.viewToggleBtn}
         accessibilityRole="button"
         accessibilityLabel="Grid view"
         accessibilityState={{ selected: mode === "grid" }}
@@ -313,12 +366,9 @@ const ViewModeToggle = memo(function ViewModeToggle({
       >
         <View style={styles.gridIconGrid}>
           {[0, 1, 2, 3].map((i) => (
-            <View
+            <Animated.View
               key={i}
-              style={[
-                styles.gridIconCell,
-                mode === "grid" && styles.gridIconCellActive,
-              ]}
+              style={[styles.gridIconCell, gridIconStyle]}
             />
           ))}
         </View>
@@ -439,8 +489,10 @@ export default function HomeScreen({
       if (assets.length === 0) return;
       await encryptImages(assets, passcode, false, selectedAlbum ?? null);
       await loadFiles();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (e) {
       console.error("[Encrypt]", e);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     }
   }, [pickImages, encryptImages, passcode, selectedAlbum, loadFiles]);
 
@@ -522,6 +574,7 @@ export default function HomeScreen({
             text: "Delete",
             style: "destructive",
             onPress: async () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
               await vault.deleteVaultFile(file.uri);
               await loadFiles();
             },
@@ -547,6 +600,7 @@ export default function HomeScreen({
 
   const handleToggleFavorite = useCallback(
     async (file: VaultFile) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       setAllFiles((prev) =>
         prev.map((f) =>
           f.uri === file.uri ? { ...f, isFavorite: !f.isFavorite } : f,
@@ -644,6 +698,7 @@ export default function HomeScreen({
 
   const handleMoveSelect = useCallback(
     async (targetAlbum: string | null) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       setMoveSheetVisible(false);
       if (!moveSheetFile) return;
       const file = moveSheetFile;
@@ -763,6 +818,7 @@ export default function HomeScreen({
   }, [selectedAlbum, showFavorites, selectedTags]);
 
   const handleEnterSelection = useCallback((uri: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setSelectionMode(true);
     setSelectedUris(new Set([uri]));
   }, []);
@@ -819,6 +875,7 @@ export default function HomeScreen({
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
             try {
               // Sequential — matches the proven pattern from batch encrypt;
               // avoids concurrent index read-modify-write races.
@@ -842,6 +899,7 @@ export default function HomeScreen({
   }, [selectedFiles, loadFiles]);
 
   const handleBatchFavorite = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     const allFavorited = selectedFiles.every((f) => f.isFavorite);
     const succeeded: string[] = [];
 
@@ -881,6 +939,7 @@ export default function HomeScreen({
 
   const handleBatchMoveSelect = useCallback(
     async (targetAlbum: string | null) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       setMoveSheetVisible(false);
       const files = selectedFiles;
       setSelectionMode(false);
@@ -1261,9 +1320,10 @@ const VaultFileCard = memo(function VaultFileCard({
   const handleDeletePress = useCallback(() => {
     deleteScale.value = withSequence(
       withTiming(0.85, { duration: 80 }),
-      withTiming(1, { duration: 80 }),
+      withTiming(1, { duration: 80 }, (finished) => {
+        if (finished) runOnJS(onDelete)(file);
+      }),
     );
-    setTimeout(() => onDelete(file), 100);
   }, [onDelete, file]);
 
   const handleStarPress = useCallback(() => {
@@ -1803,7 +1863,11 @@ const SelectionActionBar = memo(function SelectionActionBar({
   onTag,
 }: SelectionActionBarProps) {
   return (
-    <Animated.View entering={FadeIn.duration(150)} style={styles.selectionBar}>
+    <Animated.View
+      entering={FadeInDown.duration(220).springify().damping(20)}
+      exiting={FadeOutDown.duration(160)}
+      style={styles.selectionBar}
+    >
       <Pressable
         onPress={onCancel}
         style={styles.selectionCancelBtn}
@@ -1826,9 +1890,14 @@ const SelectionActionBar = memo(function SelectionActionBar({
         </Text>
       </Pressable>
 
-      <Text style={styles.selectionCount} numberOfLines={1}>
+      <Animated.Text
+        key={count}
+        entering={FadeIn.duration(120)}
+        style={styles.selectionCount}
+        numberOfLines={1}
+      >
         {count} selected
-      </Text>
+      </Animated.Text>
 
       <View style={styles.selectionActions}>
         <Pressable
@@ -2236,7 +2305,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
-  viewToggleBtnActive: {
+  // Slides between the two button positions instead of each button
+  // instantly swapping its own background — see VIEW_TOGGLE_STEP.
+  viewTogglePill: {
+    position: "absolute",
+    left: 2,
+    top: 2,
+    width: 28,
+    height: 28,
+    borderRadius: Radius.full,
     backgroundColor: Colors.white,
   } as ViewStyle,
   listIconCol: {
@@ -2247,9 +2324,6 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     backgroundColor: Colors.textMuted,
-  } as ViewStyle,
-  listIconBarActive: {
-    backgroundColor: Colors.black,
   } as ViewStyle,
   gridIconGrid: {
     width: 14,
@@ -2263,9 +2337,6 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 1.5,
     backgroundColor: Colors.textMuted,
-  } as ViewStyle,
-  gridIconCellActive: {
-    backgroundColor: Colors.black,
   } as ViewStyle,
 
   fileCard: {

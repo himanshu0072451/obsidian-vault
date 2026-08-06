@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  runOnJS,
 } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 
@@ -42,16 +43,16 @@ export function MoveFileSheet({
 
       sheetScale.value = 0.92;
 
-      sheetScale.value = withSpring(1, {
-        damping: 22,
-        stiffness: 240,
-      });
-
-      const timer = setTimeout(() => {
-        setBackdropEnabled(true);
-      }, 250);
-
-      return () => clearTimeout(timer);
+      // Backdrop taps enable once the entrance spring actually settles,
+      // rather than a fixed guess at how long that takes — so retuning the
+      // spring can never leave this gate mistimed.
+      sheetScale.value = withSpring(
+        1,
+        { damping: 22, stiffness: 240 },
+        (finished) => {
+          if (finished) runOnJS(setBackdropEnabled)(true);
+        },
+      );
     } else {
       setBackdropEnabled(false);
       sheetScale.value = 0.92;

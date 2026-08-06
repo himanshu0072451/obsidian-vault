@@ -32,6 +32,7 @@ import {
 } from "react-native";
 import Animated, {
   FadeIn,
+  FadeOut,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -171,6 +172,41 @@ function ChromeButton({
         {children}
       </Pressable>
     </Animated.View>
+  );
+}
+
+// ─── FavoriteGlyph ──────────────────────────────────────────────────────────
+// Matches the star pop already used on HomeScreen's VaultFileCard — was
+// missing here, so the two favorite affordances felt inconsistent.
+
+function FavoriteGlyph({ active }: { active: boolean }) {
+  const starScale = useSharedValue(1);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    // Only the toggle should pop — not the initial mount when the viewer
+    // opens on an already-favorited file.
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    starScale.value = withSequence(
+      withSpring(1.15, { damping: 14, stiffness: 300 }),
+      withSpring(1, { damping: 16, stiffness: 300 }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  const starStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: starScale.value }],
+  }));
+
+  return (
+    <Animated.Text
+      style={[styles.iconBtnText, active && styles.iconBtnTextActive, starStyle]}
+    >
+      {active ? "★" : "☆"}
+    </Animated.Text>
   );
 }
 
@@ -715,14 +751,7 @@ export default memo(function ImageViewer({
                           : "Add to favorites"
                       }
                     >
-                      <Text
-                        style={[
-                          styles.iconBtnText,
-                          file.isFavorite && styles.iconBtnTextActive,
-                        ]}
-                      >
-                        {file.isFavorite ? "★" : "☆"}
-                      </Text>
+                      <FavoriteGlyph active={file.isFavorite} />
                     </ChromeButton>
                   )}
                   <ChromeButton
@@ -738,6 +767,7 @@ export default memo(function ImageViewer({
                 {moreMenuVisible && file && (
                   <Animated.View
                     entering={FadeIn.duration(120)}
+                    exiting={FadeOut.duration(100)}
                     style={styles.moreMenu}
                   >
                     <BlurView

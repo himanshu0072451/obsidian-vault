@@ -10,7 +10,7 @@
  * The ChangePasscodeSheet is a second overlay stacked on top when needed.
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -21,8 +21,15 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { useAuth, useVault } from "../hooks/useAuth";
 import { ChangePasscodeSheet } from "../components/ChangePasscodeSheet";
@@ -62,6 +69,20 @@ function SettingsRow({
   onPress,
   right,
 }: SettingsRowProps) {
+  // Press-scale matches Card/Button's convention elsewhere in the app —
+  // declared unconditionally (hooks can't be called only when onPress is
+  // set) but only ever driven when this row is actually pressable.
+  const scale = useSharedValue(1);
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.98, { damping: 20, stiffness: 300 });
+  }, []);
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+  }, []);
+
   const body = (
     <View
       className={`flex-row items-center gap-3 px-4 py-4 ${disabled ? "opacity-40" : ""}`}
@@ -92,20 +113,55 @@ function SettingsRow({
   if (!onPress) return body;
 
   return (
-    <Pressable
-      onPress={disabled ? undefined : onPress}
-      disabled={disabled}
-      className="active:bg-white/[0.05]"
-      accessibilityRole="button"
-      accessibilityLabel={title}
-    >
-      {body}
-    </Pressable>
+    <Animated.View style={pressStyle}>
+      <Pressable
+        onPress={disabled ? undefined : onPress}
+        onPressIn={disabled ? undefined : handlePressIn}
+        onPressOut={disabled ? undefined : handlePressOut}
+        disabled={disabled}
+        className="active:bg-white/[0.05]"
+        accessibilityRole="button"
+        accessibilityLabel={title}
+      >
+        {body}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 function RowDivider() {
   return <View className="ml-16 h-px bg-white/[0.08]" />;
+}
+
+// ─── AnimatedSwitch ─────────────────────────────────────────────────────────
+// The native Switch already animates its own thumb — this just adds a
+// small settle pop on the whole control when its value flips, so the row
+// itself reacts too, not just the toggle.
+
+function AnimatedSwitch(props: React.ComponentProps<typeof Switch>) {
+  const scale = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    // Skip the pop on mount — only react to actual value flips.
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    scale.value = withSpring(1.08, { damping: 12, stiffness: 300 }, () => {
+      scale.value = withSpring(1, { damping: 14, stiffness: 300 });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.value]);
+
+  return (
+    <Animated.View style={style}>
+      <Switch {...props} />
+    </Animated.View>
+  );
 }
 
 function Chevron() {
@@ -160,6 +216,7 @@ export default function SettingsScreen({
 
   const handleBiometricToggle = useCallback(
     async (value: boolean) => {
+      Haptics.selectionAsync().catch(() => {});
       if (value) {
         await enableBiometrics();
       } else {
@@ -167,6 +224,22 @@ export default function SettingsScreen({
       }
     },
     [enableBiometrics, disableBiometrics],
+  );
+
+  const handleLockOnBackgroundToggle = useCallback(
+    (value: boolean) => {
+      Haptics.selectionAsync().catch(() => {});
+      setLockOnBackground(value);
+    },
+    [setLockOnBackground],
+  );
+
+  const handleCamouflageModeToggle = useCallback(
+    (value: boolean) => {
+      Haptics.selectionAsync().catch(() => {});
+      setCamouflageModeEnabled(value);
+    },
+    [setCamouflageModeEnabled],
   );
 
   // ── Rebuild Index ─────────────────────────────────────────────────────────
@@ -185,8 +258,10 @@ export default function SettingsScreen({
             try {
               await vault.rebuildIndex();
               onIndexRebuilt();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
               Alert.alert("Done", "Vault index has been rebuilt.");
             } catch (e) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
               Alert.alert(
                 "Error",
                 "Index rebuild failed. Your files are safe.",
@@ -225,7 +300,11 @@ export default function SettingsScreen({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <Animated.View entering={FadeIn.duration(200)} style={styles.root}>
+    <Animated.View
+      entering={FadeIn.duration(200)}
+      exiting={FadeOut.duration(180)}
+      style={styles.root}
+    >
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-white/[0.08] px-5 pb-6 pt-12">
         <Pressable
@@ -263,7 +342,7 @@ export default function SettingsScreen({
             }
             disabled={!biometricAvailable}
             right={
-              <Switch
+              <AnimatedSwitch
                 value={biometricEnabled}
                 onValueChange={handleBiometricToggle}
                 disabled={!biometricAvailable}
@@ -279,9 +358,9 @@ export default function SettingsScreen({
             title="Lock on Background"
             subtitle="Lock vault when you switch apps"
             right={
-              <Switch
+              <AnimatedSwitch
                 value={lockOnBackground}
-                onValueChange={setLockOnBackground}
+                onValueChange={handleLockOnBackgroundToggle}
                 {...switchProps}
               />
             }
@@ -294,9 +373,9 @@ export default function SettingsScreen({
             title="Camouflage Mode"
             subtitle="Disguise the vault as a Calculator until your passcode is typed"
             right={
-              <Switch
+              <AnimatedSwitch
                 value={camouflageModeEnabled}
-                onValueChange={setCamouflageModeEnabled}
+                onValueChange={handleCamouflageModeToggle}
                 {...switchProps}
               />
             }

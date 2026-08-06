@@ -37,6 +37,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { useAuth } from "../hooks/useAuth";
 import { useUnlockTransition } from "../hooks/useUnlockTransition";
 
@@ -347,6 +348,9 @@ function CalcButton({ label, variant, active, wide, onPress }: CalcButtonProps) 
 
   const handlePressIn = useCallback(() => {
     scale.value = withSpring(0.92, { damping: 15, stiffness: 400 });
+    // Real calculator apps give tactile feedback per key — also strengthens
+    // the disguise, since a silent keypad would feel subtly "off".
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   }, []);
 
   const handlePressOut = useCallback(() => {

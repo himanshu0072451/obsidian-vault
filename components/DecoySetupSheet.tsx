@@ -23,16 +23,15 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-  Vibration,
 } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  useSharedValue as useAV,
   withSpring,
   withTiming,
   withSequence,
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Colors, Typography, Spacing, Radius } from '../utils/design';
 import { PasscodeInput } from './PasscodeInput';
 
@@ -61,6 +60,9 @@ export function DecoySetupSheet({
   const sheetScale   = useSharedValue(0.92);
   const sheetOpacity = useSharedValue(0);
   const errorOpacity = useSharedValue(0);
+  // No unlock choreography here — PasscodeInput just requires the shared
+  // value to exist. Stays at 0 forever, so it has no visual effect.
+  const unlockProgress = useSharedValue(0);
 
   // Reset internal state each time the sheet opens
   useEffect(() => {
@@ -93,7 +95,7 @@ export function DecoySetupSheet({
       withTiming(1, { duration: 1400 }),
       withTiming(0, { duration: 300 })
     );
-    Vibration.vibrate(200);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
   }, []);
 
   const handleComplete = useCallback(
@@ -145,11 +147,12 @@ export function DecoySetupSheet({
 
             {/* Passcode dots */}
             <View style={styles.inputArea}>
+              <Text style={styles.stepLabel}>{label}</Text>
+              <Text style={styles.stepSublabel}>{sublabel}</Text>
               <PasscodeInput
                 key={step}   /* remount on step change to reset dot state */
-                label={label}
-                sublabel={sublabel}
                 onComplete={handleComplete}
+                unlockProgress={unlockProgress}
               />
             </View>
 
@@ -229,6 +232,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: Spacing.sm,
   } as ViewStyle,
+
+  stepLabel: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.text,
+    letterSpacing: Typography.tight,
+    textAlign: 'center',
+    marginBottom: 4,
+  } as TextStyle,
+
+  stepSublabel: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  } as TextStyle,
 
   error: {
     fontSize: Typography.sm,
