@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  useWindowDimensions,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -36,6 +37,13 @@ export function MoveFileSheet({
 }: MoveFileSheetProps) {
   const sheetScale = useSharedValue(0.92);
   const [backdropEnabled, setBackdropEnabled] = useState(false);
+  const { height: windowHeight } = useWindowDimensions();
+  // Was a fixed 320 regardless of screen size — on short/small-height
+  // Android screens (or landscape) that could push the sheet's total
+  // height (header + list + cancel button) past the viewport with nothing
+  // able to scroll it back into view. Scales down on short screens while
+  // staying at the original 320 on anything tall enough to afford it.
+  const listMaxHeight = Math.min(320, windowHeight * 0.4);
 
   useEffect(() => {
     if (visible) {
@@ -88,7 +96,7 @@ export function MoveFileSheet({
                 {fileName}
               </Text>
 
-              <Text style={styles.subtitle}>
+              <Text style={styles.subtitle} numberOfLines={2} ellipsizeMode="tail">
                 {currentAlbum
                   ? `Currently in: ${currentAlbum}`
                   : "Currently in: Vault Root"}
@@ -96,7 +104,7 @@ export function MoveFileSheet({
             </View>
 
             <ScrollView
-              style={styles.list}
+              style={[styles.list, { maxHeight: listMaxHeight }]}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               bounces={false}
@@ -114,7 +122,9 @@ export function MoveFileSheet({
                   ]}
                   onPress={() => onSelect(album)}
                 >
-                  <Text style={styles.rowText}>{album}</Text>
+                  <Text style={styles.rowText} numberOfLines={2} ellipsizeMode="tail">
+                    {album}
+                  </Text>
                   <Text style={styles.chevron}>›</Text>
                 </Pressable>
               ))}
@@ -212,10 +222,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xl,
   } as ViewStyle,
 
   sheet: {
     width: "100%",
+    // Caps runaway width on tablets/large screens — phones never reach
+    // this width so the existing look is unchanged there.
+    maxWidth: 440,
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
     overflow: "hidden",

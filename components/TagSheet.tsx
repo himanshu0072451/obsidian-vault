@@ -126,7 +126,13 @@ export function TagSheet({
                           accessibilityRole="button"
                           accessibilityLabel={`Remove tag ${tag}`}
                         >
-                          <Text style={styles.currentChipText}>{tag}</Text>
+                          <Text
+                            style={styles.currentChipText}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {tag}
+                          </Text>
                           <Text style={styles.currentChipRemove}>✕</Text>
                         </Pressable>
                       ))}
@@ -174,7 +180,9 @@ export function TagSheet({
                       ]}
                       onPress={() => handleChipPress(tag)}
                     >
-                      <Text style={styles.chipText}>{tag}</Text>
+                      <Text style={styles.chipText} numberOfLines={1} ellipsizeMode="tail">
+                        {tag}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
@@ -216,7 +224,9 @@ export function TagSheet({
                               accessibilityRole="button"
                               accessibilityLabel={`Add tag ${tag}`}
                             >
-                              <Text style={styles.chipText}>{tag}</Text>
+                              <Text style={styles.chipText} numberOfLines={1} ellipsizeMode="tail">
+                                {tag}
+                              </Text>
                             </Pressable>
                           ))}
                       </View>
@@ -264,10 +274,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xl,
   } as ViewStyle,
 
   sheet: {
     width: "100%",
+    // Caps runaway width on tablets/large screens — phones never reach
+    // this width so the existing look is unchanged there.
+    maxWidth: 480,
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
     borderWidth: 1,
@@ -359,6 +373,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.midDark,
     borderWidth: 1,
     borderColor: Colors.borderLight,
+    // Long tag names truncate (numberOfLines={1} on the label) instead of
+    // stretching the chip past the row and forcing an awkward wrap.
+    maxWidth: 220,
+    flexShrink: 1,
   } as ViewStyle,
 
   chipPressed: {
@@ -375,10 +393,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.midDark,
     borderWidth: 1,
     borderColor: Colors.silver,
+    maxWidth: 220,
+    flexShrink: 1,
   } as ViewStyle,
   currentChipText: {
     fontSize: Typography.sm,
     color: Colors.silver,
+    flexShrink: 1,
   } as TextStyle,
   currentChipRemove: {
     fontSize: 10,
@@ -389,6 +410,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: Typography.sm,
     color: Colors.text,
+    flexShrink: 1,
   } as TextStyle,
 
   doneBtn: {

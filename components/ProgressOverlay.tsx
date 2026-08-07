@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, Modal, ViewStyle } from "react-native";
+import { View, Text, StyleSheet, Modal, ViewStyle, SafeAreaView } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -96,7 +96,7 @@ export function ProgressOverlay({
   if (!visible) return null;
   return (
     // <Modal transparent visible={visible} animationType="fade">
-    <View
+    <SafeAreaView
       style={[
         StyleSheet.absoluteFillObject,
         {
@@ -158,7 +158,7 @@ export function ProgressOverlay({
           )}
         </Animated.View>
       </View>
-    </View>
+    </SafeAreaView>
     // {/* </Modal> */}
   );
 }
@@ -173,6 +173,9 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   sheet: {
     width: "100%",
+    // Caps runaway width on tablets/large screens — phones never reach
+    // this width so the existing look is unchanged there.
+    maxWidth: 420,
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
