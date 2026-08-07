@@ -432,6 +432,66 @@ export default function HomeScreen({
   const [moveSheetVisible, setMoveSheetVisible] = useState(false);
   const [moveSheetFile, setMoveSheetFile] = useState<VaultFile | null>(null);
 
+  // ─── Move-to-Album cover data ────────────────────────────────────────────
+  // Per-album file count + a representative "cover" file (most recently
+  // added), derived from allFiles — no new storage reads, just aggregating
+  // data already loaded for the home grid/list. Feeds MoveFileSheet's
+  // album cards.
+  const albumStats = useMemo(() => {
+    const stats = new Map<
+      string,
+      { count: number; coverFile: VaultFile | null }
+    >();
+    for (const file of allFiles) {
+      if (file.album === null) continue;
+      const existing = stats.get(file.album);
+      if (!existing) {
+        stats.set(file.album, { count: 1, coverFile: file });
+      } else {
+        existing.count += 1;
+        if (file.createdAt > (existing.coverFile?.createdAt ?? 0)) {
+          existing.coverFile = file;
+        }
+      }
+    }
+    return stats;
+  }, [allFiles]);
+
+  const albumCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    albumStats.forEach((stat, name) => {
+      counts[name] = stat.count;
+    });
+    return counts;
+  }, [albumStats]);
+
+  // Decrypted cover thumbnails, keyed by album name. Lazy — only decrypts
+  // while the move sheet is actually open, and only once per album name
+  // (requestedCoversRef tracks in-flight/completed requests so re-renders
+  // don't re-trigger the same decrypt).
+  const [albumCoverUris, setAlbumCoverUris] = useState<
+    Record<string, string | null>
+  >({});
+  const requestedCoversRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!moveSheetVisible) return;
+    let cancelled = false;
+    albumStats.forEach((stat, name) => {
+      if (!stat.coverFile?.thumbUri) return;
+      if (requestedCoversRef.current.has(name)) return;
+      requestedCoversRef.current.add(name);
+      getDecryptedThumb(stat.coverFile, passcode).then((uri) => {
+        if (!cancelled) {
+          setAlbumCoverUris((prev) => ({ ...prev, [name]: uri }));
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [moveSheetVisible, albumStats, passcode]);
+
   // Multi-select
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedUris, setSelectedUris] = useState<Set<string>>(new Set());
@@ -489,10 +549,14 @@ export default function HomeScreen({
       if (assets.length === 0) return;
       await encryptImages(assets, passcode, false, selectedAlbum ?? null);
       await loadFiles();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+        () => {},
+      );
     } catch (e) {
       console.error("[Encrypt]", e);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
+        () => {},
+      );
     }
   }, [pickImages, encryptImages, passcode, selectedAlbum, loadFiles]);
 
@@ -557,9 +621,14 @@ export default function HomeScreen({
   // (favorite, move, tag) should patch it here too, or the viewer's bottom
   // bar and favorite state go stale until it's closed and reopened. No-op
   // if the viewer isn't showing that file (or isn't open at all).
-  const syncPreviewFile = useCallback((uri: string, patch: Partial<VaultFile>) => {
-    setPreviewFile((prev) => (prev && prev.uri === uri ? { ...prev, ...patch } : prev));
-  }, []);
+  const syncPreviewFile = useCallback(
+    (uri: string, patch: Partial<VaultFile>) => {
+      setPreviewFile((prev) =>
+        prev && prev.uri === uri ? { ...prev, ...patch } : prev,
+      );
+    },
+    [],
+  );
 
   // ─── Delete ───────────────────────────────────────────────────────────────
 
@@ -574,7 +643,9 @@ export default function HomeScreen({
             text: "Delete",
             style: "destructive",
             onPress: async () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+                () => {},
+              );
               await vault.deleteVaultFile(file.uri);
               await loadFiles();
             },
@@ -875,7 +946,9 @@ export default function HomeScreen({
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+              () => {},
+            );
             try {
               // Sequential — matches the proven pattern from batch encrypt;
               // avoids concurrent index read-modify-write races.
@@ -1224,6 +1297,8 @@ export default function HomeScreen({
         }
         currentAlbum={moveSheetFile ? moveSheetFile.album : batchCurrentAlbum}
         albums={albums}
+        albumCounts={albumCounts}
+        albumCoverUris={albumCoverUris}
         onSelect={moveSheetFile ? handleMoveSelect : handleBatchMoveSelect}
         onCancel={() => {
           setMoveSheetVisible(false);
@@ -1591,11 +1666,7 @@ function getListRowGradient(
   const dominant = colors[0];
   // Ambient-light feel, not a paint wash: capped at 16% opacity even at its
   // strongest point (right behind the thumbnail).
-  return [
-    hexToRgba(dominant, 0.16),
-    "rgba(0,0,0,0.05)",
-    "rgba(0,0,0,0.22)",
-  ];
+  return [hexToRgba(dominant, 0.16), "rgba(0,0,0,0.05)", "rgba(0,0,0,0.22)"];
 }
 
 // ─── useThumbnail ───────────────────────────────────────────────────────────
