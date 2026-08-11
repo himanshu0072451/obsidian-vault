@@ -29,6 +29,7 @@ import {
   ViewStyle,
   TextStyle,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import Animated, {
   FadeIn,
@@ -261,6 +262,25 @@ export default memo(function ImageViewer({
   const lastTapTime = useSharedValue(0);
   const lastTapX = useSharedValue(0);
   const lastTapY = useSharedValue(0);
+
+  // ─── Android hardware back button ───────────────────────────────────────
+  // With nothing listening, Android's hardware back press falls through to
+  // whatever's underneath this overlay (HomeScreen), since this viewer is a
+  // plain absolutely-positioned View, not a screen in a navigation stack or
+  // a native Modal — neither of which intercepts hardware back on their
+  // own here. Only registered while the viewer is actually visible, and
+  // returning `true` from the handler consumes the event so it stops right
+  // here instead of also closing/backing out whatever's underneath. Same
+  // close path as the header's back-chevron button (onClose), so behavior
+  // stays identical to every other way of closing the viewer.
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   // ─── Open/close animation ──────────────────────────────────────────────
 
