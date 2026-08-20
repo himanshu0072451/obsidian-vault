@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, Modal, ViewStyle, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, ViewStyle, SafeAreaView } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -36,8 +36,6 @@ export function ProgressOverlay({
   const contentOpacity = useSharedValue(0);
   const spinRotation = useSharedValue(0);
   const statusIconScale = useSharedValue(1);
-
-  // console.log("ProgressOverlay", visible, status);
 
   useEffect(() => {
     if (visible) {

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, StyleProp, TextInput } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
@@ -12,7 +12,7 @@ const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Card({ children, style }: CardProps) {
@@ -22,7 +22,7 @@ export function Card({ children, style }: CardProps) {
 interface StatCardProps {
   value: string | number;
   label: string;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function StatCard({ value, label, style }: StatCardProps) {

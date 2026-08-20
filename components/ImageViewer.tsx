@@ -27,6 +27,7 @@ import {
   Pressable,
   Platform,
   ViewStyle,
+  ImageStyle,
   TextStyle,
   ActivityIndicator,
   BackHandler,
@@ -257,7 +258,6 @@ export default memo(function ImageViewer({
 
   // Chrome (header/hint) visibility
   const chromeOpacity = useSharedValue(1);
-  const [chromeVisible, setChromeVisible] = useState(true);
   const chromeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Double-tap tracking
@@ -287,22 +287,7 @@ export default memo(function ImageViewer({
   // ─── Open/close animation ──────────────────────────────────────────────
 
   useEffect(() => {
-    // console.log(
-    //   "[IV] ImageViewer RENDER",
-    //   {
-    //     visible,
-    //     hasUri: !!imageUri,
-    //     imageOpacity: imageOpacity.value,
-    //     backdropOpacity: backdropOpacity.value,
-    //   },
-    //   Date.now(),
-    // );
     if (visible) {
-      // console.log(
-      //   "[IV] 4. useEffect([visible]) fired, visible=",
-      //   visible,
-      //   Date.now(),
-      // );
       // Cancel any in-flight animations before resetting — bare assignment
       // does not stop UI-thread worklets (withDecay, withSpring).
       cancelAnimation(scale);
@@ -355,7 +340,6 @@ export default memo(function ImageViewer({
         duration: 200,
         easing: Easing.in(Easing.cubic),
       });
-      // console.log("[IV] 5. withTiming animations STARTED", Date.now());
     }
   }, [visible]);
 
@@ -415,13 +399,11 @@ export default memo(function ImageViewer({
     clearChromeTimer();
     chromeTimer.current = setTimeout(() => {
       chromeOpacity.value = withTiming(0, { duration: 400 });
-      runOnJS(setChromeVisible)(false);
     }, CHROME_HIDE_DELAY);
   }, []);
 
   const showChrome = useCallback(() => {
     chromeOpacity.value = withTiming(1, { duration: 200 });
-    setChromeVisible(true);
     scheduleChromeHide();
   }, [scheduleChromeHide]);
 
@@ -478,15 +460,6 @@ export default memo(function ImageViewer({
   const panGesture = Gesture.Pan()
     .averageTouches(true)
     .onStart(() => {
-      // console.log(
-      //   "[IV] 8. PAN onStart - scale:",
-      //   scale.value,
-      //   "translateX:",
-      //   translateX.value,
-      //   "swipeY:",
-      //   swipeY.value,
-      // );
-
       cancelAnimation(translateX);
       cancelAnimation(translateY);
       savedX.value = translateX.value;
@@ -930,7 +903,7 @@ const styles = StyleSheet.create({
   image: {
     width: SCREEN.width,
     height: SCREEN.height,
-  } as ViewStyle,
+  } as ImageStyle,
 
   slowLoadIndicator: {
     position: "absolute",

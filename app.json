@@ -38,6 +38,9 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES"
       ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "edgeToEdgeEnabled": true,
       "versionCode": 1
     },
@@ -47,7 +50,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Obsidian needs access to your photo library."
+          "photosPermission": "Obsidian needs access to your photo library.",
+          "microphonePermission": false
         }
       ],
       [

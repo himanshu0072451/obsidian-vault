@@ -41,7 +41,6 @@ export class VaultStorage {
   private readonly keyPasscodeHash: string;
   private readonly keyActivity: string;
   private readonly keyFavorites: string;
-  private readonly keyTags: string;
 
   // ── Filesystem root for this vault ──────────────────────────────────────
   readonly rootDir: string;
@@ -54,7 +53,6 @@ export class VaultStorage {
     this.keyPasscodeHash = `${p}_passcode_hash`;
     this.keyActivity = `${p}_activity`;
     this.keyFavorites = `${p}_favorites`;
-    this.keyTags = `${p}_tags`;
 
     // Filesystem: <documents>/vault/real/ or <documents>/vault/decoy/
     this.rootDir = `${FileSystem.documentDirectory}vault/${context}/`;

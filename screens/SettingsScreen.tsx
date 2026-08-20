@@ -184,7 +184,6 @@ export default function SettingsScreen({
     camouflageModeEnabled,
     setCamouflageModeEnabled,
     changePasscode,
-    vaultContext,
   } = useAuth();
   const vault = useVault();
 

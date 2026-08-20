@@ -20,19 +20,11 @@ android {
     versionCode 1
     versionName "1.0.0"
   }
-  // Newer AGP no longer generates BuildConfig by default — opted in
-  // explicitly so the module can gate its DEBUG-only logging on
-  // BuildConfig.DEBUG (release builds get none of it).
-  buildFeatures {
-    buildConfig true
-  }
 }
 
 dependencies {
-  // PickVisualMedia/PickMultipleVisualMedia (the modern Photo Picker
-  // contracts) and IntentSenderRequest (for the createDeleteRequest
-  // confirmation flow) both live here. Version matches what
-  // expo-image-picker itself already depends on, for consistency.
+  // IntentSenderRequest/StartIntentSenderForResult (for the
+  // createDeleteRequest confirmation fallback) lives here.
   implementation "androidx.activity:activity-ktx:1.10.0"
   // @RequiresApi, used on DeleteRequestContract.createIntent.
   implementation "androidx.annotation:annotation:1.7.0"

@@ -28,10 +28,7 @@ import {
   disableBiometrics,
   getBiometricAvailability,
 } from "../services/BiometricService";
-import type {
-  BiometricAvailability,
-  BiometricResult,
-} from "../services/BiometricService";
+import type { BiometricAvailability } from "../services/BiometricService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

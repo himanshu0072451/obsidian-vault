@@ -12,7 +12,6 @@
 import React, { memo, useCallback, useEffect } from "react";
 import {
   ScrollView,
-  View,
   Text,
   Pressable,
   StyleSheet,

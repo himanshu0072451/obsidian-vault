@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.MediaStore
-import android.util.Log
 import android.webkit.MimeTypeMap
 import expo.modules.kotlin.activityresult.AppContextActivityResultLauncher
 import expo.modules.kotlin.functions.Coroutine
@@ -18,8 +17,6 @@ import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 import java.io.File
 import java.io.FileOutputStream
-
-private const val TAG = "MediaStoreResolver"
 
 /**
  * MediaStoreResolverModule — ImageVault's own small Android image picker.
@@ -77,9 +74,6 @@ class MediaStoreResolverModule : Module() {
       isPickerOpen = true
       try {
         val uris = pickImagesLauncher.launch(PickImagesOptions(selectionLimit))
-        if (BuildConfig.DEBUG) {
-          Log.d(TAG, "pickImages: picker returned ${uris.size} uri(s)")
-        }
         uris.map { uri -> processPickedUri(uri) }
       } finally {
         isPickerOpen = false
@@ -113,15 +107,6 @@ class MediaStoreResolverModule : Module() {
   private fun processPickedUri(uri: Uri): PickedImageResult {
     val resolver = context.contentResolver
 
-    if (BuildConfig.DEBUG) {
-      Log.d(TAG, "── picked uri ──")
-      Log.d(TAG, "raw uri (toString)=$uri")
-      Log.d(TAG, "scheme=${uri.scheme}")
-      Log.d(TAG, "authority=${uri.authority}")
-      Log.d(TAG, "path=${uri.path}")
-      Log.d(TAG, "contract=PickImagesContract (Intent.ACTION_OPEN_DOCUMENT)")
-    }
-
     // Take the persistable grant as early as possible — it's only valid
     // for as long as the app holds the (non-persistable) grant the picker
     // activity result carried, and we need it to outlive this function
@@ -131,13 +116,11 @@ class MediaStoreResolverModule : Module() {
         uri,
         Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
       )
-      if (BuildConfig.DEBUG) Log.d(TAG, "takePersistableUriPermission: succeeded for $uri")
     } catch (e: Exception) {
       // Not every provider grants persistable/write access — this is a
       // normal, expected outcome for some providers, not a failure to
       // surface loudly. requestDelete will simply find no delete path for
       // this Uri later.
-      if (BuildConfig.DEBUG) Log.d(TAG, "takePersistableUriPermission: threw for $uri", e)
     }
 
     val mimeType = resolver.getType(uri) ?: "image/jpeg"
@@ -150,11 +133,6 @@ class MediaStoreResolverModule : Module() {
 
     val fileName = queryDisplayName(resolver, uri)
     val (width, height) = decodeBounds(outputFile)
-
-    if (BuildConfig.DEBUG) {
-      Log.d(TAG, "processPickedUri: uri=$uri fileName=$fileName width=$width height=$height")
-      Log.d(TAG, "── end picked uri ──")
-    }
 
     return PickedImageResult(
       uri = Uri.fromFile(outputFile).toString(),
@@ -172,7 +150,6 @@ class MediaStoreResolverModule : Module() {
         if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
       }
     } catch (e: Exception) {
-      if (BuildConfig.DEBUG) Log.d(TAG, "queryDisplayName threw for $uri", e)
       null
     }
   }
@@ -183,7 +160,6 @@ class MediaStoreResolverModule : Module() {
       BitmapFactory.decodeFile(file.absolutePath, options)
       Pair(options.outWidth, options.outHeight)
     } catch (e: Exception) {
-      if (BuildConfig.DEBUG) Log.d(TAG, "decodeBounds threw for ${file.absolutePath}", e)
       Pair(0, 0)
     }
   }
@@ -202,33 +178,26 @@ class MediaStoreResolverModule : Module() {
     for (uri in uris) {
       val supportsDelete = documentSupportsDelete(resolver, uri)
       if (!supportsDelete) {
-        if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: $uri does not report FLAG_SUPPORTS_DELETE, trying fallback")
         needsFallback.add(uri)
         continue
       }
       val deleted = try {
         DocumentsContract.deleteDocument(resolver, uri)
       } catch (e: Exception) {
-        if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: deleteDocument threw for $uri", e)
         false
       }
-      if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: deleteDocument($uri) -> $deleted")
       if (!deleted) needsFallback.add(uri)
     }
 
     if (needsFallback.isEmpty()) return true
 
     val fallbackIds = needsFallback.mapNotNull { translateAndVerify(context, it) }
-    if (BuildConfig.DEBUG) {
-      Log.d(TAG, "requestDelete: ${needsFallback.size} uri(s) need MediaStore fallback, ${fallbackIds.size} translated")
-    }
     if (fallbackIds.isEmpty()) return false
 
     val fallbackApproved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       try {
         deleteRequestLauncher.launch(DeleteRequestOptions(fallbackIds))
       } catch (e: Exception) {
-        if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: fallback launch threw", e)
         false
       }
     } else {
@@ -239,14 +208,12 @@ class MediaStoreResolverModule : Module() {
           val rows = resolver.delete(mediaUri, null, null)
           if (rows == 0) allDeleted = false
         } catch (e: Exception) {
-          if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: direct delete failed for id=$idStr", e)
           allDeleted = false
         }
       }
       allDeleted
     }
 
-    if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: fallback result=$fallbackApproved")
     // Overall success requires both the direct deletions and the fallback
     // batch to have succeeded — a partial result is reported as false so
     // callers don't assume everything was cleaned up.
@@ -263,7 +230,6 @@ class MediaStoreResolverModule : Module() {
         (flags and DocumentsContract.Document.FLAG_SUPPORTS_DELETE) != 0
       } ?: false
     } catch (e: Exception) {
-      if (BuildConfig.DEBUG) Log.d(TAG, "documentSupportsDelete threw for $uri", e)
       false
     }
   }
@@ -281,14 +247,12 @@ class MediaStoreResolverModule : Module() {
     val mediaUri = try {
       MediaStore.getMediaUri(context, sourceUri)
     } catch (e: Exception) {
-      if (BuildConfig.DEBUG) Log.d(TAG, "translateAndVerify: getMediaUri threw for $sourceUri", e)
       null
     } ?: return null
 
     val id = try {
       ContentUris.parseId(mediaUri)
     } catch (e: Exception) {
-      if (BuildConfig.DEBUG) Log.d(TAG, "translateAndVerify: could not parse id from $mediaUri", e)
       return null
     }
 
