@@ -1,0 +1,8 @@
+{
+  "name": "media-store-resolver",
+  "version": "1.0.0",
+  "description": "Deterministic MediaStore row lookup by exact filename+size+dimensions, for safely deleting the original photo after it's been encrypted into the vault. Android only — see index.ts.",
+  "main": "index.ts",
+  "license": "UNLICENSED",
+  "private": true
+}

@@ -1,0 +1,39 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+// group/version and defaultConfig.versionCode/versionName mirror this
+// module's own package.json version (1.0.0) — not the app's version. This
+// is the same pattern every published Expo module's build.gradle follows
+// (e.g. expo-media-library, expo-haptics, expo-file-system all declare
+// their own versionCode/versionName here, matching their own package.json,
+// independent of any consuming app). AGP's library-module configuration
+// requires defaultConfig.versionName to be set; omitting it is what broke
+// the build.
+group = 'com.imagevault.mediastoreresolver'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.mediastoreresolver"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+  // Newer AGP no longer generates BuildConfig by default — opted in
+  // explicitly so the module can gate its DEBUG-only logging on
+  // BuildConfig.DEBUG (release builds get none of it).
+  buildFeatures {
+    buildConfig true
+  }
+}
+
+dependencies {
+  // PickVisualMedia/PickMultipleVisualMedia (the modern Photo Picker
+  // contracts) and IntentSenderRequest (for the createDeleteRequest
+  // confirmation flow) both live here. Version matches what
+  // expo-image-picker itself already depends on, for consistency.
+  implementation "androidx.activity:activity-ktx:1.10.0"
+  // @RequiresApi, used on DeleteRequestContract.createIntent.
+  implementation "androidx.annotation:annotation:1.7.0"
+}

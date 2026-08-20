@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
@@ -9,6 +10,10 @@ import {
 } from "../services/encryption";
 import { VAULT_EXTENSION } from "../services/storage";
 import { capturePhoto } from "../services/SecureCameraService";
+import {
+  pickImagesNative,
+  requestDeleteNative,
+} from "../modules/media-store-resolver";
 import { useVault, useAuth } from "./useAuth";
 import type { VaultFile } from "../services/storage";
 
@@ -67,6 +72,39 @@ function buildDisplayName(
   return `Photo ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}-${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// ── Picked asset (platform-normalized) ──────────────────────────────────────
+//
+// Android picks via modules/media-store-resolver (our own local native
+// picker using Intent.ACTION_OPEN_DOCUMENT — see MediaStoreResolverModule.kt
+// for why expo-image-picker isn't used here) and returns the original SAF
+// document Uri with a persistable permission grant already taken; identity
+// resolution for deletion (deleteDocument, or MediaStore translation as a
+// fallback) happens natively inside requestDeleteNative, not here.
+// iOS keeps using expo-image-picker + expo-media-library exactly as
+// before; deletionRef is filled in from assetId, verified the same way it
+// always was.
+//
+// deletionRef is the ONLY thing encryptImages trusts for deletion — null
+// always means "no positively identified local original," never a guess to
+// fall back on.
+export interface PickedAsset {
+  uri: string;
+  fileName: string | null;
+  deletionRef: string | null;
+}
+
+async function verifyIosAssetId(
+  assetId: string | null | undefined,
+): Promise<string | null> {
+  if (!assetId) return null;
+  try {
+    const info = await MediaLibrary.getAssetInfoAsync(assetId);
+    return info?.id ? assetId : null;
+  } catch {
+    return null;
+  }
+}
+
 interface VaultOperation {
   status: OperationStatus;
   progress: number;
@@ -89,35 +127,86 @@ export function useVaultOperations() {
   const [decryptOp, setDecryptOp] = useState<VaultOperation>(idle);
 
   // ── Pick images from gallery ─────────────────────────────────────────────
+  //
+  // Android: our own local native picker (modules/media-store-resolver),
+  // using Intent.ACTION_OPEN_DOCUMENT — returns the original document Uri
+  // with a persistable permission grant, not expo-image-picker's
+  // unreliable assetId. Deletion identity is resolved later, in
+  // requestDeleteNative.
+  // iOS: unchanged, still expo-image-picker + expo-media-library.
 
-  const pickImages = useCallback(async (): Promise<
-    ImagePicker.ImagePickerAsset[]
-  > => {
+  const pickImages = useCallback(async (): Promise<PickedAsset[]> => {
     suppressBackgroundLock();
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted")
-      throw new Error("Photo library permission denied");
-    let result: ImagePicker.ImagePickerResult;
     try {
-      result = await ImagePicker.launchImageLibraryAsync({
+      if (Platform.OS === "android") {
+        // Best-effort — denial doesn't block picking, it just means every
+        // asset comes back with verifiedAssetId: null (encryptImages will
+        // simply never queue anything for deletion).
+        if (__DEV__) {
+          const status = await MediaLibrary.requestPermissionsAsync();
+          console.log(
+            "[Import:permissions] MediaLibrary permission at pick time:",
+            status.status,
+            status.accessPrivileges ?? "",
+          );
+        } else {
+          await MediaLibrary.requestPermissionsAsync();
+        }
+
+        const picked = await pickImagesNative(20);
+        if (__DEV__) {
+          picked.forEach((p) =>
+            console.log("[Import:picked]", {
+              uri: p.uri,
+              fileName: p.fileName,
+              width: p.width,
+              height: p.height,
+              documentUri: p.documentUri,
+            }),
+          );
+        }
+        return picked.map((p) => ({
+          uri: p.uri,
+          fileName: p.fileName,
+          deletionRef: p.documentUri,
+        }));
+      }
+
+      // iOS
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted")
+        throw new Error("Photo library permission denied");
+
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsMultipleSelection: true,
         quality: 1,
         selectionLimit: 20,
       });
+      if (result.canceled) return [];
+
+      const assets: PickedAsset[] = [];
+      for (const a of result.assets) {
+        assets.push({
+          uri: a.uri,
+          fileName: a.fileName ?? null,
+          deletionRef: await verifyIosAssetId(a.assetId),
+        });
+      }
+      if (__DEV__) {
+        assets.forEach((a) => console.log("[Import:picked]", a));
+      }
+      return assets;
     } finally {
       resumeBackgroundLock();
     }
-
-    if (result.canceled) return [];
-    return result.assets;
   }, []);
 
   // ── Encrypt ──────────────────────────────────────────────────────────────
 
   const encryptImages = useCallback(
     async (
-      assets: ImagePicker.ImagePickerAsset[],
+      assets: PickedAsset[],
       passcode: string,
       deleteOriginal: boolean,
       albumName?: string | null,
@@ -133,6 +222,17 @@ export function useVaultOperations() {
         const outDir = await vault.ensureAlbumDir(albumName ?? null);
         const total = assets.length;
 
+        // Collected as each asset is verified encrypted+recorded, then
+        // deleted in ONE batched call after the loop — not per-asset. On
+        // Android, requestDeleteNative tries DocumentsContract.deleteDocument
+        // per Uri first (no dialog needed there) and only falls back to
+        // MediaStore.createDeleteRequest — which surfaces a single OS
+        // confirmation dialog for the whole fallback batch — for Uris that
+        // don't support direct deletion; calling it once per asset would
+        // mean up to `total` separate interruptions during a multi-photo
+        // import.
+        const assetIdsToDelete: string[] = [];
+
         for (let i = 0; i < total; i++) {
           const asset = assets[i];
           setEncryptOp({
@@ -143,13 +243,22 @@ export function useVaultOperations() {
           });
 
           const outPath = await encryptImage(asset.uri, passcode, outDir);
+
+          // Verify the encrypted file actually landed on disk before doing
+          // anything irreversible to the original — encryptImage()
+          // resolving without throwing isn't proof by itself.
+          const outInfo = await FileSystem.getInfoAsync(outPath);
+          if (!outInfo.exists || outInfo.size === 0) {
+            throw new Error(
+              `Encrypted output missing or empty for ${asset.fileName ?? asset.uri}`,
+            );
+          }
+
           const displayName = buildDisplayName(
             asset.fileName,
             asset.uri,
             new Date(),
           );
-
-          // console.log("displayName: " + displayName);
 
           // Best-effort — a failed/missing thumbnail (or color set) must
           // never block the primary encrypt; the grid falls back to the
@@ -172,8 +281,54 @@ export function useVaultOperations() {
             colors,
           );
 
-          if (deleteOriginal) {
-            await FileSystem.deleteAsync(asset.uri, { idempotent: true });
+          // Only queued once the encrypted copy is verified on disk *and*
+          // durably recorded in the vault index — never before.
+          // On Android, deletionRef is the original document Uri (identity
+          // resolution for deletion happens natively, inside
+          // requestDeleteNative); on iOS it's already a verified assetId
+          // (MediaLibrary.getAssetInfoAsync). This is the only place
+          // deletion eligibility is decided.
+          if (deleteOriginal && asset.deletionRef) {
+            assetIdsToDelete.push(asset.deletionRef);
+          }
+        }
+
+        if (__DEV__) {
+          console.log(
+            "[Import:delete] verified asset ids to delete:",
+            assetIdsToDelete,
+          );
+        }
+        if (assetIdsToDelete.length > 0) {
+          try {
+            if (Platform.OS === "android") {
+              // DocumentsContract.deleteDocument per Uri first, falling
+              // back to MediaStore.createDeleteRequest (one system
+              // confirmation dialog for the whole fallback batch) only for
+              // Uris that don't support direct deletion. NOT
+              // expo-media-library's deleteAssetsAsync — verified by
+              // reading its source that it does a raw ContentResolver.delete
+              // with no confirmation flow, which reliably fails for media
+              // this app didn't create.
+              const approved = await requestDeleteNative(assetIdsToDelete);
+              if (__DEV__) {
+                console.log("[Import:delete] requestDeleteNative result:", approved);
+              }
+            } else {
+              const deleted =
+                await MediaLibrary.deleteAssetsAsync(assetIdsToDelete);
+              if (__DEV__) {
+                console.log("[Import:delete] deleteAssetsAsync result:", deleted);
+              }
+            }
+          } catch (e) {
+            if (__DEV__) {
+              console.log("[Import:delete] deletion threw:", e);
+            }
+            // Non-fatal — every encrypted copy is already safely in the
+            // vault regardless of whether the OS-level delete succeeded
+            // (permission revoked mid-flow, an asset already gone, the
+            // user declined the confirmation prompt, etc).
           }
         }
 

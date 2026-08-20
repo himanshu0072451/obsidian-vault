@@ -36,6 +36,7 @@ import Animated, {
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import { useAuth, useVault } from "../hooks/useAuth";
 import { useVaultOperations } from "../hooks/useVaultOperations";
+import type { PickedAsset } from "../hooks/useVaultOperations";
 import { ProgressOverlay } from "../components/ProgressOverlay";
 import { Card, HeroStat } from "../components/Card";
 import type { VaultFile } from "../services/storage";
@@ -52,6 +53,7 @@ import { DecoySetupSheet } from "../components/DecoySetupSheet";
 import { MoveFileSheet } from "../components/MoveFileSheet";
 import { TagSheet } from "../components/TagSheet";
 import { FileDetailsSheet } from "../components/FileDetailsSheet";
+import { MakePrivateSheet } from "../components/MakePrivateSheet";
 import { useAlbums } from "../hooks/useAlbums";
 
 // ─── ListHeader props ─────────────────────────────────────────────────────────
@@ -405,6 +407,7 @@ export default function HomeScreen({
     pickImages,
     encryptImages,
     captureAndEncrypt,
+    decryptToLibrary,
     resetEncrypt,
     resetDecrypt,
   } = useVaultOperations();
@@ -431,6 +434,10 @@ export default function HomeScreen({
   const [decoySheetVisible, setDecoySheetVisible] = useState(false);
   const [moveSheetVisible, setMoveSheetVisible] = useState(false);
   const [moveSheetFile, setMoveSheetFile] = useState<VaultFile | null>(null);
+  const [makePrivateVisible, setMakePrivateVisible] = useState(false);
+  const [pendingImportAssets, setPendingImportAssets] = useState<
+    PickedAsset[] | null
+  >(null);
 
   // ─── Move-to-Album cover data ────────────────────────────────────────────
   // Per-album file count + a representative "cover" file (most recently
@@ -543,22 +550,68 @@ export default function HomeScreen({
 
   // ─── Encrypt ─────────────────────────────────────────────────────────────
 
+  // Runs the actual encrypt(+delete) once the user has picked assets and,
+  // if needed, confirmed via MakePrivateSheet. deleteOriginal stays true —
+  // encryptImages itself only ever queues an asset for deletion when it
+  // has a deletionRef, so this is a no-op for anything not attempted.
+  const runImport = useCallback(
+    async (assets: PickedAsset[]) => {
+      try {
+        await encryptImages(assets, passcode, true, selectedAlbum ?? null);
+        await loadFiles();
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        ).catch(() => {});
+      } catch (e) {
+        console.error("[Encrypt]", e);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
+          () => {},
+        );
+      }
+    },
+    [encryptImages, passcode, selectedAlbum, loadFiles],
+  );
+
   const handleEncrypt = useCallback(async () => {
     try {
       const assets = await pickImages();
       if (assets.length === 0) return;
-      await encryptImages(assets, passcode, false, selectedAlbum ?? null);
-      await loadFiles();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
-        () => {},
-      );
+
+      // Only assets with a deletionRef are ones deletion will actually be
+      // attempted for (Android: a document Uri with a permission grant;
+      // iOS: a verified MediaLibrary assetId) — everything else imports
+      // without ever touching the gallery, so the confirmation is skipped
+      // entirely when nothing is actually going to be removed.
+      const deletableCount = assets.filter((a) => a.deletionRef).length;
+      if (deletableCount === 0) {
+        await runImport(assets);
+        return;
+      }
+
+      // One confirmation for the whole batch, not one per photo — shown
+      // before encryptImages runs at all, so Cancel backs out of the
+      // import+delete entirely rather than partially completing it.
+      setPendingImportAssets(assets);
+      setMakePrivateVisible(true);
     } catch (e) {
       console.error("[Encrypt]", e);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
         () => {},
       );
     }
-  }, [pickImages, encryptImages, passcode, selectedAlbum, loadFiles]);
+  }, [pickImages, runImport]);
+
+  const handleMakePrivateConfirm = useCallback(() => {
+    setMakePrivateVisible(false);
+    const assets = pendingImportAssets;
+    setPendingImportAssets(null);
+    if (assets) runImport(assets);
+  }, [pendingImportAssets, runImport]);
+
+  const handleMakePrivateCancel = useCallback(() => {
+    setMakePrivateVisible(false);
+    setPendingImportAssets(null);
+  }, []);
 
   const handleSecureCamera = useCallback(async () => {
     const captured = await captureAndEncrypt(passcode, selectedAlbum ?? null);
@@ -604,6 +657,32 @@ export default function HomeScreen({
       }
     },
     [passcode],
+  );
+
+  // ─── Export to Gallery ───────────────────────────────────────────────────
+  //
+  // Decrypts through the existing decryptToLibrary path (MediaLibrary.
+  // saveToLibraryAsync) so the image reappears in the normal device
+  // Gallery/Photos — the inverse of the import-time removal. The vault's
+  // encrypted copy is untouched either way.
+
+  const handleExportToGallery = useCallback(
+    (file: VaultFile) => {
+      Alert.alert(
+        "Export to Gallery",
+        "Save a decrypted copy to your device's Photos/Gallery? Your encrypted copy stays safely in Obsidian.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Export",
+            onPress: () => {
+              decryptToLibrary([file.uri], passcode);
+            },
+          },
+        ],
+      );
+    },
+    [decryptToLibrary, passcode],
   );
 
   const handleClosePreview = useCallback(async () => {
@@ -1258,6 +1337,7 @@ export default function HomeScreen({
         onOpenMoveSheet={handleMoveFile}
         onOpenTagSheet={handleOpenTagSheet}
         onDelete={handleDeleteFromViewer}
+        onExportToGallery={handleExportToGallery}
       />
 
       {/* ── Encrypt progress overlay ───────────────────────────────────────── */}
@@ -1324,6 +1404,14 @@ export default function HomeScreen({
         visible={detailsFile !== null}
         file={detailsFile}
         onClose={() => setDetailsFile(null)}
+      />
+
+      {/* ── Make Private confirmation — shown once per batch, before encrypt+delete runs ── */}
+      <MakePrivateSheet
+        visible={makePrivateVisible}
+        count={pendingImportAssets?.filter((a) => a.deletionRef).length ?? 0}
+        onConfirm={handleMakePrivateConfirm}
+        onCancel={handleMakePrivateCancel}
       />
     </SafeAreaView>
   );

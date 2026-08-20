@@ -77,6 +77,7 @@ interface ImageViewerProps {
   onOpenMoveSheet: (file: VaultFile) => void;
   onOpenTagSheet: (file: VaultFile) => void;
   onDelete: (file: VaultFile) => void;
+  onExportToGallery: (file: VaultFile) => void;
 }
 
 // ─── Formatting helpers ─────────────────────────────────────────────────────
@@ -224,6 +225,7 @@ export default memo(function ImageViewer({
   onOpenMoveSheet,
   onOpenTagSheet,
   onDelete,
+  onExportToGallery,
 }: ImageViewerProps) {
   const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 
@@ -818,6 +820,19 @@ export default memo(function ImageViewer({
                         }}
                       >
                         <Text style={styles.moreMenuItemText}>Add Tags</Text>
+                      </ChromeButton>
+                      <View style={styles.moreMenuDivider} />
+                      <ChromeButton
+                        style={styles.moreMenuItem}
+                        accessibilityLabel="Export to Gallery"
+                        onPress={() => {
+                          setMoreMenuVisible(false);
+                          onExportToGallery(file);
+                        }}
+                      >
+                        <Text style={styles.moreMenuItemText}>
+                          Export to Gallery
+                        </Text>
                       </ChromeButton>
                       <View style={styles.moreMenuDivider} />
                       <ChromeButton

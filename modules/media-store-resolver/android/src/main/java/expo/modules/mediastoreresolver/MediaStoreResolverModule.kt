@@ -1,0 +1,317 @@
+package expo.modules.mediastoreresolver
+
+import android.content.ContentUris
+import android.content.Context
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.os.Build
+import android.provider.DocumentsContract
+import android.provider.MediaStore
+import android.util.Log
+import android.webkit.MimeTypeMap
+import expo.modules.kotlin.activityresult.AppContextActivityResultLauncher
+import expo.modules.kotlin.functions.Coroutine
+import expo.modules.kotlin.modules.Module
+import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
+import java.io.File
+import java.io.FileOutputStream
+
+private const val TAG = "MediaStoreResolver"
+
+/**
+ * MediaStoreResolverModule — ImageVault's own small Android image picker.
+ *
+ * Uses Intent.ACTION_OPEN_DOCUMENT (Storage Access Framework) rather than
+ * expo-image-picker or the modern Photo Picker. Photo Picker Uris are
+ * Android-documented as read-only, session-scoped grants with no path to
+ * later deletion. ACTION_OPEN_DOCUMENT lets us request a persistable
+ * read/write grant on the exact Uri a provider returns
+ * (Intent.FLAG_GRANT_*_URI_PERMISSION on the request, then
+ * ContentResolver.takePersistableUriPermission once we have the result) —
+ * so the same Uri the user picked can still be acted on later, after
+ * encryption has verified the copy landed safely in the vault.
+ *
+ * Deletion (requestDelete) tries two things, in order, per Uri:
+ *  1. DocumentsContract.deleteDocument — the SAF-native delete, valid for
+ *     any Uri whose provider reports Document.FLAG_SUPPORTS_DELETE. This
+ *     acts directly on the picked Uri with no translation/inference step,
+ *     and (because permission was already granted at pick time) needs no
+ *     further user confirmation dialog.
+ *  2. Only if that isn't supported or throws: fall back to translating the
+ *     Uri to a real MediaStore item via MediaStore.getMediaUri (a public
+ *     Android API, since API 26, whose purpose is exactly this — resolving
+ *     a DocumentsProvider Uri to its underlying MediaStore Uri when one
+ *     exists) and, if found, batching it into MediaStore.createDeleteRequest
+ *     (API 30+) — the Android-documented flow for a third-party app to
+ *     delete media it doesn't own via a single system confirmation dialog.
+ *     A raw ContentResolver.delete call (what expo-media-library's own
+ *     deleteAssetsAsync does, verified by reading its source) reliably
+ *     fails or throws for media this app didn't create, so it's never used.
+ *
+ * If neither path applies to a Uri, that original is left untouched and
+ * reported as not deleted — never guessed at, never forced.
+ *
+ * iOS is untouched — it keeps using expo-image-picker + expo-media-library
+ * exactly as before; this module is Android-only.
+ */
+class MediaStoreResolverModule : Module() {
+  private val context: Context
+    get() = requireNotNull(appContext.reactContext) { "React Application Context is null" }
+
+  private lateinit var pickImagesLauncher: AppContextActivityResultLauncher<PickImagesOptions, List<Uri>>
+  private lateinit var deleteRequestLauncher: AppContextActivityResultLauncher<DeleteRequestOptions, Boolean>
+
+  // Mirrors expo-image-picker's own isPickerOpen guard — a second launch
+  // while one is already in flight would otherwise crash the activity
+  // result registry.
+  private var isPickerOpen = false
+
+  override fun definition() = ModuleDefinition {
+    Name("MediaStoreResolver")
+
+    AsyncFunction("pickImages") Coroutine { selectionLimit: Int ->
+      if (isPickerOpen) return@Coroutine emptyList<PickedImageResult>()
+      isPickerOpen = true
+      try {
+        val uris = pickImagesLauncher.launch(PickImagesOptions(selectionLimit))
+        if (BuildConfig.DEBUG) {
+          Log.d(TAG, "pickImages: picker returned ${uris.size} uri(s)")
+        }
+        uris.map { uri -> processPickedUri(uri) }
+      } finally {
+        isPickerOpen = false
+      }
+    }
+
+    // documentUris are the raw Uris returned by pickImages (persistable
+    // permission already taken at pick time). This function does its own
+    // identity resolution per Uri — deleteDocument first, MediaStore
+    // translation+createDeleteRequest fallback second — it does not trust
+    // any pre-resolved id, because none is computed at pick time anymore.
+    AsyncFunction("requestDelete") Coroutine { documentUris: List<String> ->
+      if (documentUris.isEmpty()) return@Coroutine false
+      requestDelete(documentUris.map { Uri.parse(it) })
+    }
+
+    RegisterActivityContracts {
+      pickImagesLauncher = registerForActivityResult(PickImagesContract()) { _, _ -> }
+      deleteRequestLauncher = registerForActivityResult(DeleteRequestContract()) { _, _ -> }
+    }
+  }
+
+  /**
+   * Copies the picked Uri's bytes into app cache (the encryption pipeline
+   * needs a real file:// path) and takes a persistable permission grant on
+   * the original Uri so it can be acted on later, once encryption has
+   * verified the copy. The copy always happens — encryption must proceed
+   * regardless of whether the permission grant succeeds; only the ability
+   * to later delete is affected by that.
+   */
+  private fun processPickedUri(uri: Uri): PickedImageResult {
+    val resolver = context.contentResolver
+
+    if (BuildConfig.DEBUG) {
+      Log.d(TAG, "── picked uri ──")
+      Log.d(TAG, "raw uri (toString)=$uri")
+      Log.d(TAG, "scheme=${uri.scheme}")
+      Log.d(TAG, "authority=${uri.authority}")
+      Log.d(TAG, "path=${uri.path}")
+      Log.d(TAG, "contract=PickImagesContract (Intent.ACTION_OPEN_DOCUMENT)")
+    }
+
+    // Take the persistable grant as early as possible — it's only valid
+    // for as long as the app holds the (non-persistable) grant the picker
+    // activity result carried, and we need it to outlive this function
+    // call (deletion happens later, after encryption completes).
+    try {
+      resolver.takePersistableUriPermission(
+        uri,
+        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+      )
+      if (BuildConfig.DEBUG) Log.d(TAG, "takePersistableUriPermission: succeeded for $uri")
+    } catch (e: Exception) {
+      // Not every provider grants persistable/write access — this is a
+      // normal, expected outcome for some providers, not a failure to
+      // surface loudly. requestDelete will simply find no delete path for
+      // this Uri later.
+      if (BuildConfig.DEBUG) Log.d(TAG, "takePersistableUriPermission: threw for $uri", e)
+    }
+
+    val mimeType = resolver.getType(uri) ?: "image/jpeg"
+    val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "jpg"
+    val outputFile = File.createTempFile("picked_", ".$extension", context.cacheDir)
+
+    resolver.openInputStream(uri)?.use { input ->
+      FileOutputStream(outputFile).use { output -> input.copyTo(output) }
+    }
+
+    val fileName = queryDisplayName(resolver, uri)
+    val (width, height) = decodeBounds(outputFile)
+
+    if (BuildConfig.DEBUG) {
+      Log.d(TAG, "processPickedUri: uri=$uri fileName=$fileName width=$width height=$height")
+      Log.d(TAG, "── end picked uri ──")
+    }
+
+    return PickedImageResult(
+      uri = Uri.fromFile(outputFile).toString(),
+      fileName = fileName,
+      width = width,
+      height = height,
+      documentUri = uri.toString(),
+    )
+  }
+
+  private fun queryDisplayName(resolver: android.content.ContentResolver, uri: Uri): String? {
+    return try {
+      resolver.query(uri, null, null, null, null)?.use { cursor ->
+        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+        if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+      }
+    } catch (e: Exception) {
+      if (BuildConfig.DEBUG) Log.d(TAG, "queryDisplayName threw for $uri", e)
+      null
+    }
+  }
+
+  private fun decodeBounds(file: File): Pair<Int, Int> {
+    return try {
+      val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      BitmapFactory.decodeFile(file.absolutePath, options)
+      Pair(options.outWidth, options.outHeight)
+    } catch (e: Exception) {
+      if (BuildConfig.DEBUG) Log.d(TAG, "decodeBounds threw for ${file.absolutePath}", e)
+      Pair(0, 0)
+    }
+  }
+
+  /**
+   * Attempts to delete each document Uri directly via DocumentsContract,
+   * only when its provider reports FLAG_SUPPORTS_DELETE. Uris that aren't
+   * supported or that throw are collected and retried through the
+   * MediaStore translation + createDeleteRequest fallback. Returns true
+   * only if every Uri was deleted by one path or the other.
+   */
+  private suspend fun requestDelete(uris: List<Uri>): Boolean {
+    val resolver = context.contentResolver
+    val needsFallback = mutableListOf<Uri>()
+
+    for (uri in uris) {
+      val supportsDelete = documentSupportsDelete(resolver, uri)
+      if (!supportsDelete) {
+        if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: $uri does not report FLAG_SUPPORTS_DELETE, trying fallback")
+        needsFallback.add(uri)
+        continue
+      }
+      val deleted = try {
+        DocumentsContract.deleteDocument(resolver, uri)
+      } catch (e: Exception) {
+        if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: deleteDocument threw for $uri", e)
+        false
+      }
+      if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: deleteDocument($uri) -> $deleted")
+      if (!deleted) needsFallback.add(uri)
+    }
+
+    if (needsFallback.isEmpty()) return true
+
+    val fallbackIds = needsFallback.mapNotNull { translateAndVerify(context, it) }
+    if (BuildConfig.DEBUG) {
+      Log.d(TAG, "requestDelete: ${needsFallback.size} uri(s) need MediaStore fallback, ${fallbackIds.size} translated")
+    }
+    if (fallbackIds.isEmpty()) return false
+
+    val fallbackApproved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      try {
+        deleteRequestLauncher.launch(DeleteRequestOptions(fallbackIds))
+      } catch (e: Exception) {
+        if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: fallback launch threw", e)
+        false
+      }
+    } else {
+      var allDeleted = true
+      for (idStr in fallbackIds) {
+        try {
+          val mediaUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, idStr.toLong())
+          val rows = resolver.delete(mediaUri, null, null)
+          if (rows == 0) allDeleted = false
+        } catch (e: Exception) {
+          if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: direct delete failed for id=$idStr", e)
+          allDeleted = false
+        }
+      }
+      allDeleted
+    }
+
+    if (BuildConfig.DEBUG) Log.d(TAG, "requestDelete: fallback result=$fallbackApproved")
+    // Overall success requires both the direct deletions and the fallback
+    // batch to have succeeded — a partial result is reported as false so
+    // callers don't assume everything was cleaned up.
+    return fallbackApproved && fallbackIds.size == needsFallback.size
+  }
+
+  private fun documentSupportsDelete(resolver: android.content.ContentResolver, uri: Uri): Boolean {
+    return try {
+      resolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
+        if (!cursor.moveToFirst()) return false
+        val flagsIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
+        if (flagsIndex < 0) return false
+        val flags = cursor.getInt(flagsIndex)
+        (flags and DocumentsContract.Document.FLAG_SUPPORTS_DELETE) != 0
+      } ?: false
+    } catch (e: Exception) {
+      if (BuildConfig.DEBUG) Log.d(TAG, "documentSupportsDelete threw for $uri", e)
+      false
+    }
+  }
+
+  /**
+   * android.provider.MediaStore.getMediaUri(Context, Uri) — see this
+   * module's own doc comment for why this is the fallback mechanism rather
+   * than an inference from copied metadata. The resolved id is re-queried
+   * before being trusted; a translation success alone is not treated as
+   * sufficient proof.
+   */
+  private fun translateAndVerify(context: Context, sourceUri: Uri): String? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
+
+    val mediaUri = try {
+      MediaStore.getMediaUri(context, sourceUri)
+    } catch (e: Exception) {
+      if (BuildConfig.DEBUG) Log.d(TAG, "translateAndVerify: getMediaUri threw for $sourceUri", e)
+      null
+    } ?: return null
+
+    val id = try {
+      ContentUris.parseId(mediaUri)
+    } catch (e: Exception) {
+      if (BuildConfig.DEBUG) Log.d(TAG, "translateAndVerify: could not parse id from $mediaUri", e)
+      return null
+    }
+
+    val verified = context.contentResolver.query(
+      MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+      arrayOf(MediaStore.Images.Media._ID),
+      "${MediaStore.Images.Media._ID} = ?",
+      arrayOf(id.toString()),
+      null,
+    )?.use { cursor -> cursor.moveToFirst() } ?: false
+
+    return if (verified) id.toString() else null
+  }
+}
+
+class PickedImageResult(
+  @Field val uri: String = "",
+  @Field val fileName: String? = null,
+  @Field val width: Int = 0,
+  @Field val height: Int = 0,
+  // The original SAF document Uri (content://...) with a persistable
+  // permission grant already taken, ready to pass to requestDelete once
+  // encryption is verified. Null only if a Uri somehow lacked one, in
+  // which case it must never be deleted.
+  @Field val documentUri: String? = null,
+) : Record
