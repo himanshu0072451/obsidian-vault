@@ -1,49 +1,57 @@
 {
   "expo": {
     "name": "Obsidian",
-    "newArchEnabled": true,
     "slug": "obsidian",
     "version": "1.0.0",
+    "newArchEnabled": true,
     "orientation": "portrait",
-    "icon": "./assets/icon.jpg",
     "userInterfaceStyle": "dark",
+
+    "icon": "./assets/expo-icons/icon.png",
+
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/expo-icons/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0a"
     },
+
     "web": {
       "bundler": "metro"
     },
+
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.himanshu.obsidian",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Image Vault uses the camera to capture photos that are encrypted immediately and never saved to your gallery.",
-        "NSFaceIDUsageDescription": "Image Vault uses Face ID to unlock your vault.",
-        "NSPhotoLibraryUsageDescription": "Image Vault needs access to your photo library to encrypt and decrypt images.",
-        "NSPhotoLibraryAddUsageDescription": "Image Vault needs permission to save decrypted images to your photo library.",
-        "buildNumber": "1"
+        "NSCameraUsageDescription": "Obsidian uses the camera to capture photos that are encrypted immediately and never saved to your gallery.",
+        "NSFaceIDUsageDescription": "Obsidian uses Face ID to unlock your vault.",
+        "NSPhotoLibraryUsageDescription": "Obsidian needs access to your photo library to encrypt images.",
+        "NSPhotoLibraryAddUsageDescription": "Obsidian needs permission to save decrypted images to your photo library."
       }
     },
+
     "android": {
+      "package": "com.himanshu.obsidian",
+      "versionCode": 1,
+      "edgeToEdgeEnabled": true,
+
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.jpg",
+        "foregroundImage": "./assets/expo-icons/adaptive-icon.png",
         "backgroundColor": "#0a0a0a"
       },
-      "package": "com.himanshu.obsidian",
+
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES"
       ],
+
       "blockedPermissions": [
-        "android.permission.SYSTEM_ALERT_WINDOW"
-      ],
-      "edgeToEdgeEnabled": true,
-      "versionCode": 1
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
+
     "plugins": [
       "expo-secure-store",
       "expo-local-authentication",
@@ -63,11 +71,15 @@
       ],
       "expo-asset"
     ],
+
     "scheme": "obsidian",
+
     "experiments": {
       "typedRoutes": true
     },
+
     "owner": "him4nshudevs-organization",
+
     "extra": {
       "eas": {
         "projectId": "51804e0f-ebe4-4edf-b82e-26cb9357462a"
