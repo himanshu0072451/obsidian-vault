@@ -324,33 +324,79 @@ export function useVaultOperations() {
 
         const cacheDir = FileSystem.cacheDirectory!;
         const total = uris.length;
+        // Each file is isolated in its own try/catch — one corrupted or
+        // unreadable file must never abort the rest of the batch (used for
+        // both the single-file "Export to Gallery" action and "Export All").
+        let succeeded = 0;
+        let failed = 0;
+        let sawWrongPasscode = false;
 
         for (let i = 0; i < total; i++) {
           setDecryptOp({
             status: "running",
             progress: (i + 0.5) / total,
-            message: `Decrypting ${i + 1} of ${total}...`,
+            message:
+              total === 1
+                ? "Decrypting..."
+                : `Exporting ${i + 1} of ${total}...`,
             error: null,
           });
 
-          const outPath = await decryptImage(uris[i], passcode, cacheDir);
-          await MediaLibrary.saveToLibraryAsync(outPath);
-          await FileSystem.deleteAsync(outPath, { idempotent: true });
+          let outPath: string | null = null;
+          try {
+            outPath = await decryptImage(uris[i], passcode, cacheDir);
+            await MediaLibrary.saveToLibraryAsync(outPath);
+            succeeded++;
+          } catch (e: any) {
+            failed++;
+            const msg = e?.message ?? "";
+            if (msg.includes("padding") || msg.includes("passcode")) {
+              sawWrongPasscode = true;
+            }
+          } finally {
+            if (outPath) {
+              await FileSystem.deleteAsync(outPath, {
+                idempotent: true,
+              }).catch(() => {});
+            }
+          }
         }
 
-        await vault.logActivity({
-          type: "decrypt",
-          fileCount: total,
-          timestamp: Date.now(),
-        });
+        if (succeeded > 0) {
+          await vault.logActivity({
+            type: "decrypt",
+            fileCount: succeeded,
+            timestamp: Date.now(),
+          });
+        }
+
+        if (succeeded === 0) {
+          setDecryptOp({
+            status: "error",
+            progress: 0,
+            message: "",
+            error: sawWrongPasscode
+              ? "Incorrect passcode"
+              : total === 1
+                ? "Decryption failed"
+                : `All ${total} exports failed`,
+          });
+          return;
+        }
+
+        const summary =
+          failed === 0
+            ? `${succeeded} image${succeeded !== 1 ? "s" : ""} saved to Photos`
+            : `${succeeded} of ${total} saved to Photos (${failed} failed)`;
 
         setDecryptOp({
           status: "success",
           progress: 1,
-          message: `${total} image${total !== 1 ? "s" : ""} saved to Photos`,
+          message: summary,
           error: null,
         });
       } catch (e: any) {
+        // A failure before/outside the per-file loop — e.g. permission denied.
         const msg = e.message ?? "";
         const isWrongPasscode =
           msg.includes("padding") || msg.includes("passcode");
@@ -358,7 +404,7 @@ export function useVaultOperations() {
           status: "error",
           progress: 0,
           message: "",
-          error: isWrongPasscode ? "Incorrect passcode" : "Decryption failed",
+          error: isWrongPasscode ? "Incorrect passcode" : (msg || "Export failed"),
         });
       }
     },
@@ -377,77 +423,88 @@ export function useVaultOperations() {
    */
   const captureAndEncrypt = useCallback(
     async (passcode: string, albumName?: string | null): Promise<boolean> => {
+      // Suppression must stay on for the WHOLE operation — camera capture
+      // AND encrypt/thumbnail/index-write — not just the camera portion.
+      // launchCameraAsync backgrounds the app while the native camera
+      // Activity is on top; the hand-off back to the app isn't always a
+      // clean single background->active transition (a brief extra
+      // background blip during that hand-off is normal on Android). If
+      // resumeBackgroundLock() ran right after the camera returned (the
+      // previous behavior), that blip could land after suppression was
+      // already lifted but before encryption finished, triggering a real
+      // relock mid-encrypt: HomeScreen (and this in-flight closure's
+      // owning component) unmounts, Camouflage Mode/LockScreen takes over,
+      // and the captured photo is never recorded into the vault index.
       suppressBackgroundLock();
-      let tempUri: string | null;
       try {
-        tempUri = await capturePhoto();
-      } finally {
-        resumeBackgroundLock();
-      }
-      if (!tempUri) return false;
-
-      setEncryptOp({
-        status: "running",
-        progress: 0.3,
-        message: "Encrypting photo...",
-        error: null,
-      });
-
-      try {
-        const outDir = await vault.ensureAlbumDir(albumName ?? null);
-        const outPath = await encryptImage(tempUri, passcode, outDir);
-
-        // Thumbnail + colors are generated from the temp camera file before
-        // it's deleted — best-effort, never blocks the primary encrypt.
-        const { hasThumb, colors } = await generateEncryptedThumbnail(
-          tempUri,
-          passcode,
-          outPath,
-        );
-
-        // Always delete the temp camera file — it must never persist unencrypted
-        await FileSystem.deleteAsync(tempUri, { idempotent: true });
-
-        const now = new Date();
-        const cameraDisplayName = `Photo ${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
-
-        // Awaited for consistency with encryptImages — index write must complete
-        // before we return so the caller's subsequent loadFiles() sees the entry.
-        await vault.recordEncryptedFile(
-          outPath,
-          albumName ?? null,
-          cameraDisplayName,
-          hasThumb,
-          colors,
-        );
-
-        await vault.logActivity({
-          type: "encrypt",
-          fileCount: 1,
-          timestamp: Date.now(),
-          detail: albumName ?? undefined,
-        });
+        const tempUri = await capturePhoto();
+        if (!tempUri) return false;
 
         setEncryptOp({
-          status: "success",
-          progress: 1,
-          message: "Photo encrypted",
+          status: "running",
+          progress: 0.3,
+          message: "Encrypting photo...",
           error: null,
         });
 
-        return true;
-      } catch (e: any) {
-        // Best-effort cleanup on failure — temp file must not linger
-        await FileSystem.deleteAsync(tempUri, { idempotent: true });
+        try {
+          const outDir = await vault.ensureAlbumDir(albumName ?? null);
+          const outPath = await encryptImage(tempUri, passcode, outDir);
 
-        setEncryptOp({
-          status: "error",
-          progress: 0,
-          message: "",
-          error: e.message ?? "Encryption failed",
-        });
+          // Thumbnail + colors are generated from the temp camera file before
+          // it's deleted — best-effort, never blocks the primary encrypt.
+          const { hasThumb, colors } = await generateEncryptedThumbnail(
+            tempUri,
+            passcode,
+            outPath,
+          );
 
-        return false;
+          // Always delete the temp camera file — it must never persist unencrypted
+          await FileSystem.deleteAsync(tempUri, { idempotent: true });
+
+          const now = new Date();
+          const cameraDisplayName = `Photo ${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
+
+          // Awaited for consistency with encryptImages — index write must complete
+          // before we return so the caller's subsequent loadFiles() sees the entry.
+          await vault.recordEncryptedFile(
+            outPath,
+            albumName ?? null,
+            cameraDisplayName,
+            hasThumb,
+            colors,
+          );
+
+          await vault.logActivity({
+            type: "encrypt",
+            fileCount: 1,
+            timestamp: Date.now(),
+            detail: albumName ?? undefined,
+          });
+
+          setEncryptOp({
+            status: "success",
+            progress: 1,
+            message: "Photo encrypted",
+            error: null,
+          });
+
+          return true;
+        } catch (e: any) {
+          // Best-effort cleanup on failure — temp file must not linger
+          await FileSystem.deleteAsync(tempUri, { idempotent: true });
+
+          setEncryptOp({
+            status: "error",
+            progress: 0,
+            message: "",
+            error: e.message ?? "Encryption failed",
+          });
+
+          return false;
+        }
+      } finally {
+        resumeBackgroundLock();
       }
     },
     [vault],

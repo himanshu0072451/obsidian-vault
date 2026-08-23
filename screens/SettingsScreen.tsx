@@ -32,8 +32,10 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { useAuth, useVault } from "../hooks/useAuth";
+import { useVaultOperations } from "../hooks/useVaultOperations";
 import { ChangePasscodeSheet } from "../components/ChangePasscodeSheet";
 import { StatsSheet } from "../components/StatsSheet";
+import { ProgressOverlay } from "../components/ProgressOverlay";
 import type { VaultFile } from "../services/storage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -184,8 +186,10 @@ export default function SettingsScreen({
     camouflageModeEnabled,
     setCamouflageModeEnabled,
     changePasscode,
+    passcode,
   } = useAuth();
   const vault = useVault();
+  const { decryptToLibrary, decryptOp, resetDecrypt } = useVaultOperations();
 
   const [stats, setStats] = useState<{
     files: number;
@@ -240,6 +244,38 @@ export default function SettingsScreen({
     },
     [setCamouflageModeEnabled],
   );
+
+  // ── Export All to Gallery ─────────────────────────────────────────────────
+  //
+  // Decrypts every file currently in the vault through the same
+  // decryptToLibrary path Export-to-Gallery already uses (MediaLibrary.
+  // saveToLibraryAsync) — one permission request, per-file failure
+  // isolation (one bad file doesn't stop the rest), and a summary at the
+  // end. Never touches the encrypted originals.
+
+  const handleExportAll = useCallback(() => {
+    if (allFiles.length === 0) {
+      Alert.alert("No Photos", "Your vault is empty — nothing to export.");
+      return;
+    }
+    const count = allFiles.length;
+    Alert.alert(
+      "Export All to Gallery",
+      `Save decrypted copies of all ${count} photo${count === 1 ? "" : "s"} to your device's Photos/Gallery? Your encrypted vault stays untouched.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Export All",
+          onPress: () => {
+            decryptToLibrary(
+              allFiles.map((f) => f.uri),
+              passcode,
+            );
+          },
+        },
+      ],
+    );
+  }, [allFiles, decryptToLibrary, passcode]);
 
   // ── Rebuild Index ─────────────────────────────────────────────────────────
 
@@ -417,6 +453,23 @@ export default function SettingsScreen({
           <RowDivider />
 
           <SettingsRow
+            icon="download"
+            title="Export All to Gallery"
+            subtitle="Save decrypted copies of every photo to your device"
+            disabled={decryptOp.status === "running"}
+            onPress={decryptOp.status === "running" ? undefined : handleExportAll}
+            right={
+              decryptOp.status === "running" ? (
+                <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+              ) : (
+                <Chevron />
+              )
+            }
+          />
+
+          <RowDivider />
+
+          <SettingsRow
             icon="refresh-cw"
             title="Rebuild Vault Index"
             subtitle="Rescan all files from disk (tags will be lost)"
@@ -456,6 +509,14 @@ export default function SettingsScreen({
         visible={showStats}
         files={allFiles}
         onClose={() => setShowStats(false)}
+      />
+      <ProgressOverlay
+        visible={decryptOp.status !== "idle"}
+        status={decryptOp.status}
+        progress={decryptOp.progress}
+        message={decryptOp.message}
+        error={decryptOp.error}
+        onDismiss={resetDecrypt}
       />
     </Animated.View>
   );
