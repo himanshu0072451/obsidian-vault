@@ -14,7 +14,20 @@ build
 .env
 
 #Temp
-CLAUDE_CONTEXT.md
+OBSIDIAN_CONTEXT.md
 HomeScreenWORKING.tsx
 TRASH/
 *Old.ts
+*Old.json
+
+# Native build artifacts / local machine config
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+*.keystore
+*.jks
+*.p12
+*.pem
+.env.local
+.env.*.local
