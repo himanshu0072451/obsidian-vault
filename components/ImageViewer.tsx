@@ -231,7 +231,6 @@ export default memo(function ImageViewer({
   const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 
   // Visibility fade
-  // const backdropOpacity = useSharedValue(0);
   const backdropOpacity = useSharedValue(1);
   // Thumbnail fades in first (near-instant, already cached); the
   // full-resolution image fades in on top of it once it decodes.
@@ -498,12 +497,6 @@ export default memo(function ImageViewer({
           swipeY.value > SWIPE_CLOSE_DISTANCE)
       ) {
         runOnJS(triggerDismissHaptic)();
-        // // Animate off screen then call onClose
-        // swipeY.value = withTiming(SCREEN.height, { duration: 280 });
-        // backdropOpacity.value = withTiming(0, { duration: 240 }, () => {
-        //   runOnJS(onClose)();
-        // });
-
         // Animate off screen then call onClose.
         // Reset swipeY immediately so if visible becomes true again before
         // the animation completes, the reset is already committed.

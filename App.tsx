@@ -11,10 +11,12 @@ import Animated, {
   cancelAnimation,
 } from "react-native-reanimated";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { OnboardingProvider, useOnboarding } from "./hooks/useOnboarding";
 import LockScreen from "./screens/LockScreen";
 import CamouflageCalculator from "./screens/CamouflageCalculator";
 import HomeScreen from "./screens/HomeScreen";
 import SettingsScreen from "./screens/SettingsScreen";
+import OnboardingIntro from "./screens/OnboardingIntro";
 import { Colors, Typography, Spacing, Radius } from "./utils/design";
 import { activate as activateScreenSecurity } from "./services/ScreenSecurityService";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -61,7 +63,9 @@ function AppNavigator() {
     skippedBiometricOffer,
     vaultContext,
     camouflageModeEnabled,
+    isSetup,
   } = useAuth();
+  const { loadingFlags, introSeen, markIntroSeen } = useOnboarding();
 
   const [showSettings, setShowSettings] = useState(false);
   const [indexRebuildKey, setIndexRebuildKey] = useState(0);
@@ -96,8 +100,19 @@ function AppNavigator() {
     }
   }, [isUnlocked]);
 
-  if (isLoading) {
+  if (isLoading || loadingFlags) {
     return <View style={styles.splash} />;
+  }
+
+  // First-ever launch (no passcode configured yet) and the intro hasn't
+  // been dismissed — shown before passcode setup, not after, since it's
+  // explaining what the app is in the first place.
+  if (!isSetup && !introSeen) {
+    return (
+      <View style={styles.root}>
+        <OnboardingIntro onDone={markIntroSeen} />
+      </View>
+    );
   }
 
   // Show biometric setup offer once after unlock if:
@@ -199,8 +214,10 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <StatusBar style="light" />
-        <AppNavigator />
+        <OnboardingProvider>
+          <StatusBar style="light" />
+          <AppNavigator />
+        </OnboardingProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

@@ -1,0 +1,218 @@
+/**
+ * OnboardingIntro — static 3-screen first-launch explainer.
+ *
+ * Shown once, before passcode setup (gated on !isSetup in App.tsx).
+ * Persisted via useOnboarding's markIntroSeen (expo-secure-store), same
+ * pattern as every other one-time flag in this app.
+ */
+
+import React, { useState, useCallback } from "react";
+import { View, Text, Pressable, StyleSheet, ViewStyle, TextStyle } from "react-native";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { Colors, Typography, Spacing, Radius } from "../utils/design";
+import { Button } from "../components/Button";
+
+interface Slide {
+  glyph: string;
+  eyebrow: string;
+  title: string;
+  body: string;
+  warning?: string;
+}
+
+const SLIDES: Slide[] = [
+  {
+    glyph: "⬡",
+    eyebrow: "What is Obsidian?",
+    title: "A private, encrypted photo vault",
+    body: "Obsidian keeps personal photos separate from your normal gallery — encrypted, and only visible inside the app.",
+  },
+  {
+    glyph: "⎋",
+    eyebrow: "Make Photos Private",
+    title: "Import → encrypt → remove the original",
+    body: "When you import a photo, Obsidian encrypts it and removes the original from your device gallery. The encrypted copy stays safely inside Obsidian.",
+    warning:
+      "If Google Photos backup is enabled, the original may still remain in your Google Account — Obsidian can't remove cloud backups.",
+  },
+  {
+    glyph: "⚙",
+    eyebrow: "Your Vault",
+    title: "Unlock it your way",
+    body: "Use your passcode or biometric unlock to get in. Camouflage Mode disguises the app as a calculator, and everything you import stays encrypted on your device.",
+  },
+];
+
+interface OnboardingIntroProps {
+  onDone: () => void;
+}
+
+export default function OnboardingIntro({ onDone }: OnboardingIntroProps) {
+  const [index, setIndex] = useState(0);
+  const isLast = index === SLIDES.length - 1;
+  const slide = SLIDES[index];
+
+  const handleContinue = useCallback(() => {
+    if (isLast) {
+      onDone();
+    } else {
+      setIndex((i) => i + 1);
+    }
+  }, [isLast, onDone]);
+
+  return (
+    <View style={styles.root}>
+      <View style={styles.header}>
+        <View style={styles.dots}>
+          {SLIDES.map((_, i) => (
+            <View
+              key={i}
+              style={[styles.dot, i === index && styles.dotActive]}
+            />
+          ))}
+        </View>
+        <Pressable
+          onPress={onDone}
+          hitSlop={8}
+          style={styles.skipBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Skip introduction"
+        >
+          <Text style={styles.skipText}>Skip</Text>
+        </Pressable>
+      </View>
+
+      <Animated.View
+        key={index}
+        entering={FadeIn.duration(240)}
+        exiting={FadeOut.duration(150)}
+        style={styles.content}
+      >
+        <View style={styles.glyphWrap}>
+          <Text style={styles.glyph}>{slide.glyph}</Text>
+        </View>
+        <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
+        <Text style={styles.title}>{slide.title}</Text>
+        <Text style={styles.body}>{slide.body}</Text>
+        {slide.warning && (
+          <View style={styles.warningBox}>
+            <Text style={styles.warningText}>{slide.warning}</Text>
+          </View>
+        )}
+      </Animated.View>
+
+      <View style={styles.footer}>
+        <Button
+          label={isLast ? "Get Started" : "Continue"}
+          variant="primary"
+          onPress={handleContinue}
+          fullWidth
+        />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing["2xl"],
+    paddingBottom: Spacing.xl,
+  } as ViewStyle,
+
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  } as ViewStyle,
+
+  dots: {
+    flexDirection: "row",
+    gap: 6,
+  } as ViewStyle,
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
+  } as ViewStyle,
+  dotActive: {
+    width: 18,
+    backgroundColor: Colors.white,
+  } as ViewStyle,
+
+  skipBtn: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+  } as ViewStyle,
+  skipText: {
+    fontSize: Typography.sm,
+    color: Colors.textMuted,
+    letterSpacing: Typography.wide,
+  } as TextStyle,
+
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    gap: Spacing.sm,
+  } as ViewStyle,
+
+  glyphWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+  } as ViewStyle,
+  glyph: {
+    fontSize: 40,
+    color: Colors.text,
+  } as TextStyle,
+
+  eyebrow: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+    color: Colors.textMuted,
+    letterSpacing: Typography.widest,
+    textTransform: "uppercase",
+  } as TextStyle,
+
+  title: {
+    fontSize: Typography["2xl"],
+    fontWeight: Typography.bold,
+    color: Colors.text,
+    letterSpacing: Typography.tight,
+    marginTop: 2,
+  } as TextStyle,
+
+  body: {
+    fontSize: Typography.base,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+    marginTop: Spacing.xs,
+  } as TextStyle,
+
+  warningBox: {
+    marginTop: Spacing.md,
+    backgroundColor: Colors.midDark,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.gray,
+    padding: Spacing.md,
+  } as ViewStyle,
+  warningText: {
+    fontSize: Typography.sm,
+    color: Colors.offWhite,
+    lineHeight: 19,
+  } as TextStyle,
+
+  footer: {
+    paddingTop: Spacing.lg,
+  } as ViewStyle,
+});
