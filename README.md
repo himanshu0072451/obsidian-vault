@@ -13,8 +13,52 @@ operation.
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/onboarding.jpeg" width="200" alt="Onboarding intro"/>
+      <br/><sub><b>Onboarding</b></sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/createPasscode.jpeg" width="200" alt="Create passcode"/>
+      <br/><sub><b>Create Passcode</b></sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/home.jpeg" width="200" alt="Home / vault"/>
+      <br/><sub><b>Home / Vault</b></sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/emptyHome.jpeg" width="200" alt="Empty vault state"/>
+      <br/><sub><b>Empty Vault</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/fileDetails.jpeg" width="200" alt="File details"/>
+      <br/><sub><b>File Details</b></sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/settings.jpeg" width="200" alt="Settings"/>
+      <br/><sub><b>Settings</b></sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/camouflageMode.jpeg" width="200" alt="Camouflage Mode calculator disguise"/>
+      <br/><sub><b>Camouflage Mode</b></sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/decoyVault.jpeg" width="200" alt="Decoy vault setup"/>
+      <br/><sub><b>Decoy Vault</b></sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Table of Contents
 
+- [Screenshots](#screenshots)
 - [Why Obsidian exists](#why-obsidian-exists)
 - [Core features](#core-features)
 - [The Make Private workflow](#the-make-private-workflow)
