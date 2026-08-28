@@ -1,14 +1,3 @@
-/**
- * AlbumFilterBar — horizontally scrollable album filter chips.
- *
- * Renders:
- *   • "All" chip     — selected when `selected` is undefined (show everything)
- *   • One chip per album name from the `albums` array
- *   • "＋" chip      — always last, triggers album creation
- *
- * Purely controlled — no internal state.
- */
-
 import React, { memo, useCallback, useEffect } from "react";
 import {
   ScrollView,

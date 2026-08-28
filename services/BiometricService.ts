@@ -1,19 +1,7 @@
-/**
- * BiometricService — biometric authentication for Image Vault.
- *
- * Responsibilities:
- *   1. Check hardware and enrollment availability
- *   2. Store the real-vault passcode under a biometric-protected SecureStore key
- *   3. Retrieve that passcode (triggers OS biometric prompt)
- *   4. Persist the user's enabled/disabled preference
- *
- * Design rules:
- *   • Never imports from hooks or React — pure service module
- *   • Only ever stores the REAL vault passcode (decoy vault is never enrolled)
- *   • Biometric failure always returns null — never throws to callers
- *   • SecureStore key with requireAuthentication:true ties retrieval to
- *     the device biometric/Keychain at the OS level
- */
+// Only the REAL vault passcode is ever stored here — the decoy vault is
+// never enrolled for biometrics. Biometric failure always returns null,
+// never throws. The SecureStore key uses requireAuthentication:true, which
+// ties retrieval to the device biometric/Keychain at the OS level.
 
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";

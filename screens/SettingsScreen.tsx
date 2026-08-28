@@ -1,14 +1,5 @@
-/**
- * SettingsScreen — V1 settings for ImageVault.
- *
- * Sections:
- *   Security  — Biometric toggle, Lock on Background, Camouflage Mode, Change Passcode
- *   Vault     — Storage statistics, Rebuild Index
- *   About     — App version
- *
- * Navigation: rendered as a full-screen overlay by App.tsx (no react-navigation).
- * The ChangePasscodeSheet is a second overlay stacked on top when needed.
- */
+// Rendered as a full-screen overlay by App.tsx — there's no react-navigation
+// in this app. ChangePasscodeSheet stacks a second overlay on top when needed.
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import {

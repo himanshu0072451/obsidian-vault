@@ -1,14 +1,7 @@
-/**
- * useUnlockTransition — shared lifecycle for the Lock → Home unlock
- * choreography's driving state, extracted from LockScreen and
- * CamouflageCalculator (which had identically duplicated it).
- *
- * Owns exactly: the `unlockProgress` shared value, the double-fire guard,
- * the mounted guard, the relock-reset fix, and unmount cleanup. It knows
- * nothing about *how* progress is animated (spring vs timing, duration,
- * damping) or what any layer does with it — that stays with each screen,
- * passed in via `driveProgress`.
- */
+// Shared by LockScreen and CamouflageCalculator. Owns the `unlockProgress`
+// shared value, the double-fire guard, the mounted guard, and the
+// relock-reset — but nothing about *how* progress animates (spring vs
+// timing, duration); that stays with each screen via `driveProgress`.
 
 import { useCallback, useEffect, useRef } from "react";
 import {

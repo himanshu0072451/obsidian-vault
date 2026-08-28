@@ -1,16 +1,5 @@
-/**
- * AlbumService — business logic for album management.
- *
- * Sits between VaultStorage (filesystem) and useAlbums (React state).
- * Responsibilities:
- *   • Validate album names before touching the filesystem
- *   • Translate raw storage errors into typed AlbumErrors
- *   • Log all mutating operations to the activity timeline
- *   • Never import from React or hooks
- *
- * Usage:
- *   const svc = new AlbumService(vault);  // vault = VaultStorage instance
- */
+// Sits between VaultStorage (filesystem) and useAlbums (React state) —
+// deliberately never imports from React or hooks.
 
 import { VaultStorage } from './storage/VaultStorage';
 import type { VaultFile } from './storage/types';

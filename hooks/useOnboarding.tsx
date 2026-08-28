@@ -1,11 +1,5 @@
-/**
- * useOnboarding — first-launch intro persistence.
- *
- * Backs the static 3-screen explainer (OnboardingIntro.tsx), shown once
- * before passcode setup. Persisted via expo-secure-store, the same
- * mechanism already used for `vault_lock_on_bg` / `vault_camouflage_mode`
- * in useAuth.tsx.
- */
+// Persisted via expo-secure-store, same mechanism as useAuth.tsx's
+// `vault_lock_on_bg` / `vault_camouflage_mode` flags.
 
 import React, {
   createContext,

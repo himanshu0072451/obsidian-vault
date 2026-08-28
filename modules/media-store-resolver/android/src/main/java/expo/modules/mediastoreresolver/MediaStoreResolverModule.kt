@@ -18,42 +18,21 @@ import expo.modules.kotlin.records.Record
 import java.io.File
 import java.io.FileOutputStream
 
-/**
- * MediaStoreResolverModule — ImageVault's own small Android image picker.
- *
- * Uses Intent.ACTION_OPEN_DOCUMENT (Storage Access Framework) rather than
- * expo-image-picker or the modern Photo Picker. Photo Picker Uris are
- * Android-documented as read-only, session-scoped grants with no path to
- * later deletion. ACTION_OPEN_DOCUMENT lets us request a persistable
- * read/write grant on the exact Uri a provider returns
- * (Intent.FLAG_GRANT_*_URI_PERMISSION on the request, then
- * ContentResolver.takePersistableUriPermission once we have the result) —
- * so the same Uri the user picked can still be acted on later, after
- * encryption has verified the copy landed safely in the vault.
- *
- * Deletion (requestDelete) tries two things, in order, per Uri:
- *  1. DocumentsContract.deleteDocument — the SAF-native delete, valid for
- *     any Uri whose provider reports Document.FLAG_SUPPORTS_DELETE. This
- *     acts directly on the picked Uri with no translation/inference step,
- *     and (because permission was already granted at pick time) needs no
- *     further user confirmation dialog.
- *  2. Only if that isn't supported or throws: fall back to translating the
- *     Uri to a real MediaStore item via MediaStore.getMediaUri (a public
- *     Android API, since API 26, whose purpose is exactly this — resolving
- *     a DocumentsProvider Uri to its underlying MediaStore Uri when one
- *     exists) and, if found, batching it into MediaStore.createDeleteRequest
- *     (API 30+) — the Android-documented flow for a third-party app to
- *     delete media it doesn't own via a single system confirmation dialog.
- *     A raw ContentResolver.delete call (what expo-media-library's own
- *     deleteAssetsAsync does, verified by reading its source) reliably
- *     fails or throws for media this app didn't create, so it's never used.
- *
- * If neither path applies to a Uri, that original is left untouched and
- * reported as not deleted — never guessed at, never forced.
- *
- * iOS is untouched — it keeps using expo-image-picker + expo-media-library
- * exactly as before; this module is Android-only.
- */
+// Uses ACTION_OPEN_DOCUMENT (SAF) instead of the modern Photo Picker,
+// because Photo Picker Uris are read-only/session-scoped with no path to
+// later deletion. A persistable grant is taken on pick so the same Uri can
+// still be acted on after encryption verifies the copy.
+//
+// requestDelete tries DocumentsContract.deleteDocument on the picked Uri
+// directly first (no extra confirmation dialog, since permission was
+// already granted at pick time); only if that's unsupported does it fall
+// back to MediaStore.getMediaUri + MediaStore.createDeleteRequest (one
+// system dialog for the whole batch). A raw ContentResolver.delete
+// (what expo-media-library's deleteAssetsAsync does) reliably fails for
+// media this app didn't create, so it's never used. If neither path
+// applies, the original is left untouched, never guessed at.
+//
+// Android-only — iOS keeps using expo-image-picker + expo-media-library.
 class MediaStoreResolverModule : Module() {
   private val context: Context
     get() = requireNotNull(appContext.reactContext) { "React Application Context is null" }

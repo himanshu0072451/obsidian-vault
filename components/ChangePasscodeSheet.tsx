@@ -1,14 +1,4 @@
-/**
- * ChangePasscodeSheet — full-screen overlay for changing the vault passcode.
- *
- * Three steps:
- *   1. verify  — current passcode (identity check)
- *   2. enter   — new passcode
- *   3. confirm — retype new passcode
- *
- * Reuses PasscodeInput from LockScreen.
- * Rendered as position:absolute (not Modal) — same pattern as TagSheet.
- */
+// Rendered as position:absolute, not Modal — same pattern as TagSheet.
 
 import React, { useState, useCallback } from 'react';
 import {

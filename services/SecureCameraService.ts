@@ -1,19 +1,7 @@
-/**
- * SecureCameraService — camera permission and photo capture.
- *
- * Responsibilities:
- *   1. Request camera permission, explaining why if denied.
- *   2. Launch the native camera via expo-image-picker.launchCameraAsync.
- *   3. Return the captured temp file URI, or null if cancelled/denied.
- *
- * This service does NOT encrypt — encryption is handled by the caller
- * (useVaultOperations.captureAndEncrypt) using the existing pipeline.
- *
- * The captured image lands in the OS temp/cache directory.
- * It is never saved to the device gallery — launchCameraAsync does not
- * write to the camera roll by default. The caller deletes the temp file
- * immediately after encryption.
- */
+// Does NOT encrypt — that's useVaultOperations.captureAndEncrypt's job.
+// The captured image lands in the OS temp/cache directory and is never
+// saved to the device gallery (launchCameraAsync doesn't write to the
+// camera roll by default); the caller deletes the temp file after encrypt.
 
 import * as ImagePicker from "expo-image-picker";
 import { Alert, Linking } from "react-native";

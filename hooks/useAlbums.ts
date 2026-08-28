@@ -1,25 +1,6 @@
-/**
- * useAlbums — React state management for album operations.
- *
- * Wraps AlbumService and exposes:
- *   • albums         — current album list (string[])
- *   • isLoading      — true during initial load
- *   • error          — last user-facing error string, or null
- *   • refresh()      — reload album list from disk
- *   • createAlbum()  — validate, create, refresh
- *   • renameAlbum()  — validate, rename, refresh
- *   • deleteAlbum()  — validate, delete, refresh
- *   • moveFile()     — move file, return new URI
- *
- * Error handling:
- *   Typed errors from AlbumService are caught here and converted to
- *   human-readable strings stored in `error`. The UI reads `error`
- *   to decide what to show (toast, inline message, alert, etc.).
- *   Unknown errors are re-thrown so they surface in crash reporters.
- *
- * Usage (in any authenticated screen):
- *   const { albums, createAlbum, error } = useAlbums();
- */
+// Typed errors from AlbumService are caught here and converted to
+// human-readable strings stored in `error`; unknown errors are re-thrown
+// so they still surface in crash reporters.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useVault } from './useAuth';

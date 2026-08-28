@@ -1,32 +1,11 @@
-/**
- * CamouflageCalculator — a genuine, working 4-function calculator that
- * silently unlocks the vault when your real (or decoy) passcode is typed.
- *
- * Secret detection: a rolling buffer of the last SECRET_LENGTH *digit*
- * presses only — operators, AC, decimal, sign, percent are all invisible to
- * it (they neither add to nor reset the buffer). After every digit press,
- * once the buffer is full, it's checked with useAuth's quickCheckPasscode —
- * a cheap, side-effect-free check (no session state changes) safe to call on
- * every digit press. Only once that returns true do we call the real
- * unlock() (the exact same function LockScreen calls) to actually establish
- * the session — so there is no separate secret store and no duplicated
- * authentication logic. This means the "secret PIN" is simply your actual
- * vault passcode, typed via calculator buttons instead of the passcode
- * dot-keypad — see the conversation record for why an independent secret
- * isn't possible (the passcode is also the AES key-derivation material, not
- * just a gate). This component never sees a hash or touches storage —
- * useAuth is the only layer that knows how passcodes are verified.
- *
- * Because operators never reset the buffer, the digits of your passcode can
- * be spread across an otherwise-ordinary-looking calculation (e.g.
- * "12+58-0=") and still be detected — which makes the disguise stronger,
- * not weaker, since no one has to watch you type a suspicious bare number.
- *
- * The unlock-trigger mechanism (unlockProgress, hasUnlockedRef,
- * isMountedShared, relock-reset effect) is shared with LockScreen via
- * useUnlockTransition — only the animation shape driving unlockProgress
- * (a plain fade here vs. LockScreen's layered spring) differs per screen.
- */
+// The "secret PIN" IS the actual vault passcode, not a separate one — it
+// can't be a separate secret because the passcode is also the AES
+// key-derivation material, not just a gate. A rolling buffer of the last
+// SECRET_LENGTH *digit* presses (operators/AC/decimal/sign/percent never
+// touch it) is checked via useAuth's quickCheckPasscode; only a match
+// calls the real unlock(). Because operators never reset the buffer, the
+// passcode's digits can be spread across an ordinary-looking calculation
+// (e.g. "12+58-0=") and still be detected.
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";

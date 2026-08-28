@@ -1,10 +1,4 @@
-/**
- * OnboardingIntro — static 3-screen first-launch explainer.
- *
- * Shown once, before passcode setup (gated on !isSetup in App.tsx).
- * Persisted via useOnboarding's markIntroSeen (expo-secure-store), same
- * pattern as every other one-time flag in this app.
- */
+// Gated on !isSetup in App.tsx — shown once, before passcode setup.
 
 import React, { useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet, ViewStyle, TextStyle } from "react-native";

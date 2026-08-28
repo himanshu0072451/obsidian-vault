@@ -1,22 +1,3 @@
-/**
- * ImageViewer — immersive fullscreen image viewer
- *
- * Features:
- *   • Thumbnail-first opening — shows the already-cached thumbnail
- *     instantly, crossfades to the full-resolution image once it decodes.
- *     Never a blank or blocking screen while decrypting.
- *   • Pinch-to-zoom (0.5× – 6×) with spring snap-back
- *   • Double-tap zoom toggle (1× ↔ 3×) at tap point
- *   • Momentum panning with edge clamping
- *   • Swipe-down-to-close with velocity threshold
- *   • Auto-hiding chrome after 3s inactivity
- *   • Tap to toggle chrome visibility
- *   • Glassmorphic monochrome header
- *   • Hidden status bar while open
- *   • Fade transition in/out
- *   • All gestures on UI thread via Reanimated worklets
- */
-
 import React, { useCallback, useEffect, useRef, useState, memo } from "react";
 import {
   View,

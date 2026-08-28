@@ -1,13 +1,6 @@
-/**
- * VaultStorage — all persistent operations for one vault context.
- *
- * Two instances are created in index.ts (realVault, decoyVault).
- * Each instance owns isolated:
- *   • SecureStore keys  (prefixed by context)
- *   • Filesystem paths  (vault/<context>/)
- *
- * Never instantiate this directly outside of index.ts.
- */
+// Never instantiate directly outside index.ts (realVault/decoyVault) —
+// each instance owns isolated SecureStore keys and filesystem paths,
+// prefixed by vault context.
 
 import * as SecureStore from "expo-secure-store";
 import * as FileSystem from "expo-file-system";

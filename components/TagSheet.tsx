@@ -1,27 +1,6 @@
-/**
- * TagSheet — add tags to a file or a multi-select batch.
- *
- * Matches MoveFileSheet's design language: header → one scrollable middle
- * region → footer, all bounded by the card's own maxHeight so nothing can
- * overflow regardless of content length or screen size (see the `list`
- * style comment below for why that structure matters).
- *
- * Shows:
- *   • File name (single) or "{count} files" (batch) as context
- *   • Current tags on this file, removable (single-file mode only —
- *     onRemoveTag is undefined in batch mode, same signal the original
- *     component relied on)
- *   • Text input for typing a new tag
- *   • Chip list of predefined + every tag already used in the vault —
- *     tapping a chip adds it instantly without typing; chips already
- *     applied to this file show an active state
- *   • Done button
- *
- * Purely controlled — all logic lives in HomeScreen.
- * Tags are appended only (V1 scope) — never replaces an existing list.
- * Normalisation (Title Case, dedup) happens in VaultStorage, not here —
- * this component just collects raw strings the user typed or tapped.
- */
+// onRemoveTag is undefined in batch mode — that's the signal this
+// component uses to tell single-file vs. batch apart, not a separate flag.
+// Normalisation (Title Case, dedup) happens in VaultStorage, not here.
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -476,10 +455,9 @@ function AddButton({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 // Only structural/positioning pieces, truly-animated nodes, and the
 // TextInput stay here — Animated.View doesn't pick up NativeWind's
-// className (only core RN components are auto-registered), and the
-// width/height-resolution properties below are exactly the ones that
-// broke silently and inconsistently across Android screens in
-// MoveFileSheet's earlier rounds — see the comments at their usage sites.
+// className (only core RN components are auto-registered), and
+// width/height-resolution properties in particular render inconsistently
+// across Android screens when left to className instead.
 
 const styles = StyleSheet.create({
   overlay: {

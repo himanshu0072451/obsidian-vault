@@ -1,12 +1,5 @@
-/**
- * AlbumActionSheet — modal for album actions (create / rename / delete).
- *
- * Deliberately simple:
- *   - No Reanimated on the sheet itself — was causing "boxes" artifact
- *     because shared values rendered before Modal presented natively.
- *   - autoFocus prop used instead of setTimeout race.
- *   - KeyboardAvoidingView wraps everything at the top level.
- */
+// No Reanimated on this sheet — shared values rendering before Modal
+// presents natively caused a "boxes" artifact.
 
 import React, { useEffect, useState } from "react";
 import {

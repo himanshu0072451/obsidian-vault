@@ -1,34 +1,13 @@
-/**
- * ScreenSecurityService — screen capture and recording protection.
- *
- * Android:
- *   Sets FLAG_SECURE on the app window via expo-screen-capture.
- *   FLAG_SECURE blocks:
- *     • Screenshots (OS refuses to capture the window surface)
- *     • Screen recording (media projection checks the flag)
- *     • Recent-apps thumbnails (recents renders the same surface → blank frame)
- *
- * iOS:
- *   preventScreenCaptureAsync observes UIScreen.capturedDidChangeNotification.
- *   When screen recording starts, a black overlay covers the app window.
- *   When recording stops, the overlay is removed.
- *
- *   Limitations (hard platform constraints, not fixable at the JS layer):
- *
- *   • Screenshots cannot be blocked on iOS. The OS captures the screen at the
- *     GPU compositor level before any app code runs. Apple provides no
- *     interception API. The library can detect a screenshot after the fact
- *     (UIApplication.userDidTakeScreenshotNotification) but cannot cancel it.
- *
- *   • Recent-apps thumbnails cannot be suppressed on iOS. The app switcher
- *     snapshot is taken by the OS at UIApplicationWillResignActive time.
- *     There is no public API to blank or replace it.
- *
- * Usage:
- *   Call activate() once at app startup (inside App.tsx useEffect).
- *   The returned cleanup function calls allowScreenCaptureAsync() — pass it
- *   to the useEffect return so it runs on unmount.
- */
+// Android: FLAG_SECURE (via expo-screen-capture) blocks screenshots,
+// screen recording, and recents-thumbnails (recents renders the same
+// surface, so it goes blank).
+//
+// iOS hard platform limitations, not fixable at the JS layer:
+//   • Screenshots cannot be blocked — the OS captures at the GPU
+//     compositor level before any app code runs. Apple provides no
+//     interception API, only after-the-fact detection.
+//   • Recents-thumbnails cannot be suppressed — the app-switcher snapshot
+//     is taken by the OS with no public API to blank or replace it.
 
 import * as ScreenCapture from "expo-screen-capture";
 

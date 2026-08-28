@@ -1,12 +1,3 @@
-/**
- * StatsSheet — vault statistics derived from allFiles.
- *
- * Opened from Settings → Storage row.
- * JSX overlay pattern (not Modal).
- * All computation is pure in-memory from the VaultFile array passed as prop.
- * Zero storage reads inside this component.
- */
-
 import React, { useMemo } from "react";
 import {
   View,

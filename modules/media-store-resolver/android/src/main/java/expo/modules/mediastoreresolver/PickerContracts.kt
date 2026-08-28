@@ -13,16 +13,9 @@ import androidx.annotation.RequiresApi
 import expo.modules.kotlin.activityresult.AppContextActivityResultContract
 import java.io.Serializable
 
-// ─── Picker ─────────────────────────────────────────────────────────────────
-// Launches Intent.ACTION_OPEN_DOCUMENT (Storage Access Framework) instead of
-// the modern Photo Picker. Unlike Photo Picker Uris — which Android
-// documents as read-only, session-scoped grants with no path to later
-// deletion — ACTION_OPEN_DOCUMENT lets us request a persistable read/write
-// grant on the exact Uri the provider returns, so it can still be acted on
-// (queried for delete support, or deleted outright) after the picker
-// activity has finished, once encryption has verified the copy landed
-// safely. See MediaStoreResolverModule.processPickedUri /
-// MediaStoreResolverModule.requestDelete for what's done with the Uri.
+// ACTION_OPEN_DOCUMENT (not the Photo Picker) so we can request a
+// persistable read/write grant on the exact Uri returned — see
+// MediaStoreResolverModule for what's done with it after picking.
 
 data class PickImagesOptions(val selectionLimit: Int) : Serializable
 
@@ -58,15 +51,10 @@ class PickImagesContract : AppContextActivityResultContract<PickImagesOptions, L
   }
 }
 
-// ─── Delete confirmation (MediaStore fallback) ─────────────────────────────
-// Used only when a picked document's own provider doesn't support
-// DocumentsContract.deleteDocument (see MediaStoreResolverModule.requestDelete
-// for the primary path). Wraps android.provider.MediaStore.createDeleteRequest
-// (API 30+) — the Android-documented flow for a third-party app to delete
-// MediaStore items it doesn't own: the OS shows a system confirmation
-// dialog and performs the deletion itself if approved. One request covers
-// the whole batch of fallback items, so it's still at most one extra
-// dialog, not one per photo.
+// Fallback only, when a document's provider doesn't support
+// DocumentsContract.deleteDocument. Wraps MediaStore.createDeleteRequest
+// (API 30+) — one system confirmation dialog covers the whole batch, not
+// one per photo.
 
 data class DeleteRequestOptions(val mediaStoreIds: List<String>) : Serializable
 

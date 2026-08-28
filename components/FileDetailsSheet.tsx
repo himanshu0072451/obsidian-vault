@@ -1,11 +1,3 @@
-/**
- * FileDetailsSheet — read-only metadata view for a single encrypted file.
- *
- * Opens from the › chevron on VaultFileCard.
- * JSX overlay pattern (not Modal) — identical to TagSheet.
- * All data from the VaultFile object — zero storage reads.
- */
-
 import React from "react";
 import {
   View,

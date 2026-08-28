@@ -1,18 +1,5 @@
-/**
- * DecoySetupSheet — modal for setting up the decoy vault passcode.
- *
- * Three steps:
- *   'enter'   — user enters a new 6-digit decoy passcode
- *   'confirm' — user re-enters to confirm
- *   'done'    — brief success state before the sheet closes
- *
- * This component collects and validates the passcode only.
- * It does not call setupDecoy() itself — that is the caller's responsibility.
- * onConfirm(passcode) is called once both entries match.
- *
- * Design: mirrors AlbumActionSheet (Modal → backdrop → animated card).
- * Uses PasscodeInput dots, not a text field, to match the LockScreen UX.
- */
+// Collects and validates the passcode only — does not call setupDecoy()
+// itself, that's the caller's responsibility once onConfirm fires.
 
 import React, { useEffect, useState, useCallback } from 'react';
 import {

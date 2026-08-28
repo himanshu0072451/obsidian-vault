@@ -1,37 +1,17 @@
-/**
- * VaultIndex — persistent metadata index for a single vault context.
- *
- * Phase 1A: schema definition + read/write helpers only.
- * Nothing in the existing codebase imports or calls this yet.
- * No existing behaviour is changed.
- *
- * Purpose:
- *   The current getVaultFiles() does O(2N) serial filesystem IPC calls
- *   (one getInfoAsync per .vault file + one per .thumb sidecar).
- *   At 10,000 files that is ~20,000 bridge crossings per load.
- *
- *   This index collapses that to a single FileSystem.readAsStringAsync call
- *   regardless of vault size. Phase 1B will wire getVaultFiles() to use it.
- *
- * Storage location:
- *   <documentDirectory>/vault/<context>/vault-index.json
- *
- *   Stored as plaintext JSON alongside encrypted vault files.
- *   The index contains only metadata (names, sizes, dates, album names,
- *   favorites, tags) — never decrypted image data or passcodes.
- *   The vault files themselves remain AES-256 encrypted as before.
- *
- * Concurrency model:
- *   All writes go through saveIndex(), which is the single serialisation
- *   point. Callers are responsible for not issuing concurrent writes.
- *   In practice every mutation path (encrypt, delete, favorite, tag)
- *   is already sequential in the current architecture.
- *
- * Schema versioning:
- *   The `version` field allows future migrations. Any reader that finds
- *   a version it does not recognise should treat the index as absent and
- *   fall back to a full filesystem reconciliation scan.
- */
+// Collapses what would otherwise be O(2N) serial filesystem IPC calls
+// (one getInfoAsync per .vault file + one per .thumb sidecar) into a
+// single FileSystem.readAsStringAsync read regardless of vault size.
+//
+// Stored as plaintext JSON at <documentDirectory>/vault/<context>/
+// vault-index.json, alongside the encrypted vault files. Contains only
+// metadata (names, sizes, dates, albums, favorites, tags) — never
+// decrypted image data or passcodes; the vault files themselves stay
+// AES-256 encrypted.
+//
+// All writes go through saveIndex(), the single serialization point —
+// callers must not issue concurrent writes. `version` allows future
+// migrations: a reader that finds an unrecognized version should treat
+// the index as absent and fall back to a full filesystem scan.
 
 import * as FileSystem from "expo-file-system";
 import type { VaultContext } from "./types";

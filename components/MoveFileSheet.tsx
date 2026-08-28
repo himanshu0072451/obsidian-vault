@@ -1,18 +1,6 @@
-/**
- * MoveFileSheet — choose a destination album for one file (or a batch).
- *
- * Handles both single-file move (ImageViewer's "Move to Album" menu item,
- * or a card's move action) and batch move (multi-select action bar) —
- * onSelect(targetAlbum) is all the caller needs to differentiate; onCancel
- * dismisses without moving anything. Purely presentational: album covers
- * and counts are pre-derived by HomeScreen from data it already has loaded
- * (allFiles) — no storage reads happen inside this component.
- *
- * Layout: header → scrollable album card list → footer Cancel button, all
- * bounded by the card's own maxHeight. header/footer are flexShrink: 0
- * (always keep their full height); the card list is the only piece that
- * shrinks and scrolls internally — see the `list` style below for why.
- */
+// Layout: header/footer are flexShrink:0 (always keep full height); the
+// card list is the only piece that shrinks and scrolls internally within
+// the sheet's own maxHeight — see the `list` style below.
 
 import React, { useCallback, useEffect, useState } from "react";
 import {

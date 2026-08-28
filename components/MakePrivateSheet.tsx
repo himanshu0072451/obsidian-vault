@@ -1,13 +1,5 @@
-/**
- * MakePrivateSheet — confirms removing the selected originals from the
- * device gallery before import proceeds.
- *
- * Shown once per batch (not once per photo) after the user picks images
- * and before encryptImages() runs the native/system deletion request.
- * Design: mirrors AlbumActionSheet (overlay → backdrop → sheet card, Button
- * component for actions) — deliberately no Modal/Reanimated choreography
- * beyond a simple fade, matching the app's other confirmation sheets.
- */
+// Shown once per batch, not once per photo — before encryptImages() runs
+// the native/system deletion request.
 
 import React from "react";
 import { View, Text, Pressable, StyleSheet, ViewStyle, TextStyle } from "react-native";

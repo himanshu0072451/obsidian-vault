@@ -93,7 +93,6 @@ export function ProgressOverlay({
   const isDone = status === "success" || status === "error";
   if (!visible) return null;
   return (
-    // <Modal transparent visible={visible} animationType="fade">
     <SafeAreaView
       style={[
         StyleSheet.absoluteFillObject,
@@ -157,7 +156,6 @@ export function ProgressOverlay({
         </Animated.View>
       </View>
     </SafeAreaView>
-    // {/* </Modal> */}
   );
 }
 
