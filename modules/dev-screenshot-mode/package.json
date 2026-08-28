@@ -1,0 +1,7 @@
+{
+  "name": "dev-screenshot-mode",
+  "version": "1.0.0",
+  "description": "DEV-only Android immersive fullscreen toggle for marketing screenshots. Not linked to any behavior outside development builds.",
+  "main": "index.ts",
+  "private": true
+}

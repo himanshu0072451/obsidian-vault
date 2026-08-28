@@ -1,0 +1,28 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+// group/version and defaultConfig.versionCode/versionName mirror this
+// module's own package.json version (1.0.0), matching the same pattern
+// used by modules/media-store-resolver (see that module's build.gradle
+// for why this is required by AGP, not optional boilerplate).
+group = 'com.imagevault.devscreenshotmode'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.devscreenshotmode"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // WindowInsetsControllerCompat / WindowCompat — the current
+  // Android-recommended API for hiding system bars, wrapping the real
+  // android.view.WindowInsetsController on API 30+ and degrading
+  // gracefully on older versions. Deliberately not using the deprecated
+  // View.SYSTEM_UI_FLAG_* constants or any adb/shell-based approach.
+  implementation "androidx.core:core-ktx:1.13.1"
+}

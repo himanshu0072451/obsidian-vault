@@ -31,3 +31,8 @@ android/app/build/
 *.pem
 .env.local
 .env.*.local
+
+# Local build output — never intended to be tracked
+*.apk
+*.aab
+Apk/

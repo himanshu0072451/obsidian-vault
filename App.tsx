@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform, DevSettings } from "react-native";
 import Animated, {
   FadeIn,
   Easing,
@@ -19,6 +19,7 @@ import SettingsScreen from "./screens/SettingsScreen";
 import OnboardingIntro from "./screens/OnboardingIntro";
 import { Colors, Typography, Spacing, Radius } from "./utils/design";
 import { activate as activateScreenSecurity } from "./services/ScreenSecurityService";
+import { setDevScreenshotMode } from "./modules/dev-screenshot-mode";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "./global.css";
 
@@ -209,6 +210,21 @@ export default function App() {
   // Must be in App() — the stable root — not in AppNavigator which re-renders.
   useEffect(() => {
     return activateScreenSecurity();
+  }, []);
+
+  // DEV-only: adds a "Toggle Screenshot Mode" entry to React Native's dev
+  // menu (shake the device, or Ctrl+M / Cmd+D) for hiding the status +
+  // navigation bars while taking marketing screenshots — see
+  // modules/dev-screenshot-mode. Entirely absent from production builds:
+  // this whole block is skipped outside __DEV__, and DevSettings itself
+  // doesn't exist in release builds either.
+  useEffect(() => {
+    if (!__DEV__ || Platform.OS !== "android") return;
+    let screenshotModeOn = false;
+    DevSettings.addMenuItem("Toggle Screenshot Mode (hide bars)", () => {
+      screenshotModeOn = !screenshotModeOn;
+      setDevScreenshotMode(screenshotModeOn);
+    });
   }, []);
 
   return (
