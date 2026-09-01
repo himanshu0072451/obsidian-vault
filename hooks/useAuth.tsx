@@ -64,7 +64,7 @@ interface AuthState {
   setup: (passcode: string) => Promise<void>;
 
   /** Set up the decoy vault passcode. Can be called any time after real setup. */
-  setupDecoy: (passcode: string) => Promise<void>;
+  setupDecoy: (passcode: string) => Promise<"ok" | "collision">;
 
   /** Does the decoy vault have a passcode configured? */
   hasDecoy: boolean;
@@ -218,10 +218,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── setupDecoy ────────────────────────────────────────────────────────────
 
-  const setupDecoy = useCallback(async (code: string): Promise<void> => {
+  const setupDecoy = useCallback(async (code: string): Promise<"ok" | "collision"> => {
+    if (await realVault.verifyPasscode(code)) return "collision";
     await decoyVault.savePasscodeHash(code);
     await decoyVault.ensureRootDir();
     setHasDecoy(true);
+    return "ok";
   }, []);
 
   // ── biometrics ────────────────────────────────────────────────────────────

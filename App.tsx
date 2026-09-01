@@ -137,7 +137,7 @@ function AppNavigator() {
           <View style={styles.offerCard}>
             <Text style={styles.offerTitle}>{`Enable ${label}?`}</Text>
             <Text style={styles.offerSubtitle}>
-              {`Unlock Image Vault with ${label} instead of entering your passcode each time.`}
+              {`Unlock Veilo with ${label} instead of entering your passcode each time.`}
             </Text>
             <Pressable
               style={styles.enableBtn}

@@ -28,7 +28,7 @@ class DevScreenshotModeModule : Module() {
           // rather than leaving a blank bar-shaped gap.
           WindowCompat.setDecorFitsSystemWindows(window, false)
           controller.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BY_SWIPE
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
           controller.hide(WindowInsetsCompat.Type.systemBars())
         } else {
           controller.show(WindowInsetsCompat.Type.systemBars())
