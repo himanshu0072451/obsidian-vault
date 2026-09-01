@@ -29,8 +29,8 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="obsidian"/>
-        <data android:scheme="exp+obsidian"/>
+        <data android:scheme="veilo"/>
+        <data android:scheme="exp+veilo"/>
       </intent-filter>
     </activity>
   </application>

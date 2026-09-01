@@ -12,28 +12,30 @@ interface Slide {
   title: string;
   body: string;
   warning?: string;
+  hint?: string;
 }
 
 const SLIDES: Slide[] = [
   {
     glyph: "⬡",
-    eyebrow: "What is Obsidian?",
-    title: "A private, encrypted photo vault",
-    body: "Obsidian keeps personal photos separate from your normal gallery — encrypted, and only visible inside the app.",
+    eyebrow: "What is Veilo?",
+    title: "Private photos. Actually private.",
+    body: "Veilo keeps your personal photos separate from your regular gallery: encrypted on your phone, and only visible inside the app.",
   },
   {
     glyph: "⎋",
     eyebrow: "Make Photos Private",
-    title: "Import → encrypt → remove the original",
-    body: "When you import a photo, Obsidian encrypts it and removes the original from your device gallery. The encrypted copy stays safely inside Obsidian.",
+    title: "Import it, and it's private",
+    body: "When you add a photo, Veilo encrypts it right away and removes the original from your device gallery. The encrypted copy stays safe inside the app.",
     warning:
-      "If Google Photos backup is enabled, the original may still remain in your Google Account — Obsidian can't remove cloud backups.",
+      "Heads up: if Google Photos backup is turned on, the original may still be sitting in your Google Account. Veilo can't reach into the cloud to remove it.",
   },
   {
     glyph: "⚙",
-    eyebrow: "Your Vault",
-    title: "Unlock it your way",
-    body: "Use your passcode or biometric unlock to get in. Camouflage Mode disguises the app as a calculator, and everything you import stays encrypted on your device.",
+    eyebrow: "Your Vault, Your Way",
+    title: "Unlock it however you like",
+    body: "Use your passcode or your fingerprint or face to get in. Turn on Camouflage Mode and the app looks like an ordinary calculator until you type your real passcode. Everything stays encrypted on your device the whole time.",
+    hint: "Need a second vault? Veilo can keep a separate decoy vault with its own password, tucked away in the app once you're set up.",
   },
 ];
 
@@ -93,6 +95,7 @@ export default function OnboardingIntro({ onDone }: OnboardingIntroProps) {
             <Text style={styles.warningText}>{slide.warning}</Text>
           </View>
         )}
+        {slide.hint && <Text style={styles.hintText}>{slide.hint}</Text>}
       </Animated.View>
 
       <View style={styles.footer}>
@@ -204,6 +207,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     color: Colors.offWhite,
     lineHeight: 19,
+  } as TextStyle,
+
+  hintText: {
+    fontSize: Typography.sm,
+    color: Colors.textMuted,
+    lineHeight: 19,
+    marginTop: Spacing.md,
   } as TextStyle,
 
   footer: {

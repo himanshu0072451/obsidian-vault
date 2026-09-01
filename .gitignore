@@ -14,7 +14,7 @@ build
 .env
 
 #Temp
-OBSIDIAN_CONTEXT.md
+VEILO_CONTEXT.md
 HomeScreenWORKING.tsx
 TRASH/
 *Old.ts

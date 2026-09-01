@@ -1,17 +1,17 @@
 # Changelog
 
-All notable changes to Obsidian are documented in this file.
+All notable changes to Veilo are documented in this file.
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project does not yet follow strict semantic versioning guarantees (v1.0.0
 is the first public release), but version numbers will be bumped meaningfully
 going forward.
 
-## [1.0.0] — 2026-08-23
+## [1.0.0] - 2026-08-23
 
 Initial public release. Feature-complete for the core private-photo-vault
 use case on Android; iOS code paths are implemented but not yet verified
-on-device (see README → Known Limitations).
+on-device (see README > Known Limitations).
 
 ### Added
 
@@ -38,57 +38,57 @@ on-device (see README → Known Limitations).
   backup caveat up front.
 - Deterministic, non-destructive gallery deletion: `DocumentsContract
   .deleteDocument()` primary path, `MediaStore.createDeleteRequest()`
-  fallback (Android); standard `expo-media-library` deletion (iOS). Deletion
-  is only ever attempted after the encrypted copy is verified on disk and
-  recorded in the index.
-- Direct-to-vault secure camera capture — captured photos are encrypted
+  fallback (Android); standard `expo-media-library` deletion (iOS).
+  Deletion is only ever attempted after the encrypted copy is verified on
+  disk and recorded in the index.
+- Direct-to-vault secure camera capture: captured photos are encrypted
   immediately and never written to the device gallery.
 - Fixed a race where backgrounding during native camera capture (most
   visible with Camouflage Mode + "Lock on Background" both enabled) could
-  re-lock the vault mid-encrypt and lose the captured photo; background-lock
+  re-lock the vault mid-encrypt and lose the captured photo. Background-lock
   suppression now spans the full capture-through-record operation.
 
 **Organization**
-- Albums — create, rename, delete, move files between albums (per-file and
+- Albums: create, rename, delete, move files between albums (per-file and
   batch).
-- Tags — add/remove per file, tag filter chips generated from the vault's
+- Tags: add/remove per file, tag filter chips generated from the vault's
   existing tags.
-- Favorites — star/unstar, filter to favorites only.
+- Favorites: star/unstar, filter to favorites only.
 - List and Grid views with a shared thumbnail cache.
 - Multi-select batch actions (delete, favorite, move, tag).
 
 **Viewing & export**
-- Custom full-screen Image Viewer — pinch-to-zoom, double-tap zoom, momentum
+- Custom full-screen Image Viewer: pinch-to-zoom, double-tap zoom, momentum
   panning, swipe-down-to-close, auto-hiding chrome.
 - Encrypted per-file thumbnails (separately encrypted `.thumb` sidecar,
   resized/compressed) with sampled dominant colors for the grid's adaptive
   background.
-- Export to Gallery — decrypt a single photo back to the device's normal
+- Export to Gallery: decrypt a single photo back to the device's normal
   Photos/Gallery via `MediaLibrary.saveToLibraryAsync`, without modifying or
   deleting the encrypted vault copy.
-- **Export All to Gallery** (Settings → Vault) — batch-export every photo
+- **Export All to Gallery** (Settings > Vault): batch-export every photo
   currently in the vault, with per-photo progress and a clear success/
   failure summary. One failed file no longer aborts the rest of the batch.
 
 **Security & privacy**
 - Biometric unlock (Face ID / Fingerprint) for the real vault, gated via a
-  biometric-protected SecureStore key; automatically disabled if enrollment
+  biometric-protected SecureStore key, automatically disabled if enrollment
   is invalidated at the OS level. Never enrolled for the decoy vault.
-- Camouflage Mode — disguises the entire app as a working calculator;
-  entering the real passcode via the calculator's keypad silently unlocks
+- Camouflage Mode: disguises the entire app as a working calculator.
+  Entering the real passcode via the calculator's keypad silently unlocks
   the vault.
 - Screen capture protection (`FLAG_SECURE` / `preventScreenCaptureAsync`)
   blocking screenshots, screen recording, and recents-thumbnails on Android
   while the app is open; iOS screenshot-detection/black-out where the
   platform allows it.
-- "Lock on Background" — optional auto-relock when the app is backgrounded.
+- "Lock on Background": optional auto-relock when the app is backgrounded.
 - No network calls anywhere in the app; no backend, no accounts, no
   analytics.
 
 **Onboarding**
-- 3-screen first-launch intro covering what Obsidian is, how Make Private
+- 3-screen first-launch intro covering what Veilo is, how Make Private
   works (including the Google Photos caveat), and the vault's
-  unlock/disguise options — shown once, before passcode setup.
+  unlock/disguise options, shown once, before passcode setup.
 
 ### Changed / Fixed (release hardening)
 
@@ -105,7 +105,7 @@ on-device (see README → Known Limitations).
   debug HUD that were added during development/debugging.
 - Fixed two real TypeScript type errors (`Card.tsx` style prop typing,
   `ImageViewer.tsx` `ImageStyle` vs `ViewStyle` mismatch).
-- Restored `ScreenSecurityService`'s real implementation — it had been
+- Restored `ScreenSecurityService`'s real implementation. It had been
   temporarily stubbed out to a no-op during development and was left that
   way; screen capture protection is active again.
 - Removed unnecessary Android permissions from the shipped manifest
@@ -114,10 +114,16 @@ on-device (see README → Known Limitations).
   respectively) rather than hand-editing the generated manifest.
 - `tsc --noEmit` and `tsc --noEmit --noUnusedLocals --noUnusedParameters`
   both pass with zero errors as of this release.
+- Renamed the app from Obsidian to Veilo across all user-facing text,
+  metadata, and generated Android resources. The Android application ID
+  (`com.himanshu.obsidian`), Expo slug (`obsidian`), and internal
+  SecureStore key prefixes were deliberately left unchanged since renaming
+  them would orphan any vault data already created under the old
+  identifiers. See README for details.
 
 ### Known limitations
 
-See the README's [Known Limitations](README.md#known-limitations) section —
-summarized: iOS not yet verified on-device, cloud-backed photos (Google
+See the README's [Known Limitations](README.md#known-limitations) section.
+Summary: iOS not yet verified on-device, cloud-backed photos (Google
 Photos etc.) can't be deleted by design, gallery deletion depends on source
 provider support, no automated test suite yet, no Play Store listing yet.

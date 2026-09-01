@@ -31,7 +31,7 @@ export async function capturePhoto(): Promise<string | null> {
     // Permission denied — show a helpful Alert with a Settings shortcut
     Alert.alert(
       "Camera Access Required",
-      "Image Vault needs camera access to capture photos directly into your vault. Enable it in Settings.",
+      "Veilo needs camera access to capture photos directly into your vault. Enable it in Settings.",
       [
         { text: "Cancel", style: "cancel" },
         {

@@ -670,7 +670,7 @@ export default function HomeScreen({
     (file: VaultFile) => {
       Alert.alert(
         "Export to Gallery",
-        "Save a decrypted copy to your device's Photos/Gallery? Your encrypted copy stays safely in Obsidian.",
+        "Save a decrypted copy to your device's Photos/Gallery? Your encrypted copy stays safe in Veilo.",
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -1152,9 +1152,12 @@ export default function HomeScreen({
   }, []);
 
   const handleDecoyConfirm = useCallback(
-    async (newPasscode: string) => {
-      setDecoySheetVisible(false);
-      await setupDecoy(newPasscode);
+    async (newPasscode: string): Promise<"ok" | "collision"> => {
+      const result = await setupDecoy(newPasscode);
+      if (result === "ok") {
+        setDecoySheetVisible(false);
+      }
+      return result;
     },
     [setupDecoy],
   );

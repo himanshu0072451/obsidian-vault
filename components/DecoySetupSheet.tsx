@@ -1,5 +1,7 @@
 // Collects and validates the passcode only — does not call setupDecoy()
 // itself, that's the caller's responsibility once onConfirm fires.
+// onConfirm reports back whether the caller accepted the passcode, so a
+// same-as-real-vault collision can be shown inline instead of failing silently.
 
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -28,8 +30,10 @@ type DecoyStep = 'enter' | 'confirm';
 
 interface DecoySetupSheetProps {
   visible: boolean;
-  /** Called with the confirmed passcode once both entries match. */
-  onConfirm: (passcode: string) => void;
+  /** Called with the confirmed passcode once both entries match. Resolves
+   *  to "collision" if the caller rejected it (e.g. same as the real vault
+   *  passcode), so the sheet can show the reason and let the user retry. */
+  onConfirm: (passcode: string) => Promise<"ok" | "collision">;
   onCancel: () => void;
 }
 
@@ -86,7 +90,7 @@ export function DecoySetupSheet({
   }, []);
 
   const handleComplete = useCallback(
-    (code: string) => {
+    async (code: string) => {
       if (step === 'enter') {
         setFirstCode(code);
         setStep('confirm');
@@ -101,7 +105,12 @@ export function DecoySetupSheet({
         return;
       }
 
-      onConfirm(code);
+      const result = await onConfirm(code);
+      if (result === 'collision') {
+        showError("Choose a different password. It can't be the same as your main vault password.");
+        setStep('enter');
+        setFirstCode('');
+      }
     },
     [step, firstCode, onConfirm, showError]
   );
@@ -240,8 +249,10 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     color: Colors.lightGray,
     letterSpacing: Typography.wide,
-    height: 18,
+    minHeight: 18,
+    lineHeight: 18,
     textAlign: 'center',
+    paddingHorizontal: Spacing.sm,
   } as TextStyle,
 
   cancelBtn: {

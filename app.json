@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Obsidian",
+    "name": "Veilo",
     "slug": "obsidian",
     "version": "1.0.0",
     "newArchEnabled": true,
@@ -24,10 +24,10 @@
       "bundleIdentifier": "com.himanshu.obsidian",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Obsidian uses the camera to capture photos that are encrypted immediately and never saved to your gallery.",
-        "NSFaceIDUsageDescription": "Obsidian uses Face ID to unlock your vault.",
-        "NSPhotoLibraryUsageDescription": "Obsidian needs access to your photo library to encrypt images.",
-        "NSPhotoLibraryAddUsageDescription": "Obsidian needs permission to save decrypted images to your photo library."
+        "NSCameraUsageDescription": "Veilo uses the camera to capture photos that are encrypted immediately and never saved to your gallery.",
+        "NSFaceIDUsageDescription": "Veilo uses Face ID to unlock your vault.",
+        "NSPhotoLibraryUsageDescription": "Veilo needs access to your photo library to encrypt images.",
+        "NSPhotoLibraryAddUsageDescription": "Veilo needs permission to save decrypted images to your photo library."
       }
     },
 
@@ -58,21 +58,21 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Obsidian needs access to your photo library.",
+          "photosPermission": "Veilo needs access to your photo library.",
           "microphonePermission": false
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Obsidian needs access to save decrypted images.",
-          "savePhotosPermission": "Obsidian needs permission to save images to your library."
+          "photosPermission": "Veilo needs access to save decrypted images.",
+          "savePhotosPermission": "Veilo needs permission to save images to your library."
         }
       ],
       "expo-asset"
     ],
 
-    "scheme": "obsidian",
+    "scheme": "veilo",
 
     "experiments": {
       "typedRoutes": true

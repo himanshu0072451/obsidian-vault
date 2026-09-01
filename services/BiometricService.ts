@@ -125,7 +125,7 @@ export async function getPasscodeWithBiometrics(): Promise<BiometricResult> {
   try {
     const passcode = await SecureStore.getItemAsync(KEY_PASSCODE, {
       requireAuthentication: true,
-      authenticationPrompt: "Unlock Image Vault",
+      authenticationPrompt: "Unlock Veilo",
     });
 
     if (passcode != null) {

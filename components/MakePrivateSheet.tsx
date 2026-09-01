@@ -32,32 +32,32 @@ export function MakePrivateSheet({
           <View style={styles.header}>
             <Text style={styles.title}>Make Private</Text>
             <Text style={styles.subtitle}>
-              Obsidian will remove the {count} selected {photoWord} from your
-              device gallery and keep encrypted {count === 1 ? "a copy" : "copies"} inside Obsidian.
+              Veilo will remove the {count} selected {photoWord} from your
+              device gallery and keep encrypted {count === 1 ? "a copy" : "copies"} inside the app.
             </Text>
           </View>
 
-          {/* Prominent warning — Google Photos backup is a separate, Google-
-              controlled copy that Obsidian has no access to and cannot
-              delete. Never implied otherwise. */}
+          {/* Google Photos backup is a separate, Google-controlled copy
+              that Veilo has no access to and cannot delete. Never imply
+              otherwise here. */}
           <View style={styles.warningBox}>
             <Text style={styles.warningLabel}>⚠ Google Photos Backup</Text>
             <Text style={styles.warningText}>
-              If Google Photos backup is enabled, the original may still
-              remain in your Google Account and can reappear in your Gallery
-              after backup/sync.
+              If Google Photos backup is on, the original might still be in
+              your Google Account, and it can show up in your gallery again
+              once it syncs.
             </Text>
           </View>
 
           <Text style={styles.guidanceText}>
-            To keep the {photoWord} private, remove the original{count === 1 ? "" : "s"} from
-            Google Photos/your Google Account or turn off Google Photos
-            backup for {pronoun}.
+            To make sure {pronoun === "it" ? "it's" : "they're"} really gone,
+            remove the original{count === 1 ? "" : "s"} from Google Photos or
+            your Google Account, or turn off backup for {pronoun}.
           </Text>
 
           <View style={styles.reassuranceRow}>
             <Text style={styles.reassuranceText}>
-              Your encrypted copy will remain safely inside Obsidian.
+              Your encrypted copy stays safe inside Veilo.
             </Text>
           </View>
 
