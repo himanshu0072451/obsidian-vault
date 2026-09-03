@@ -11,6 +11,7 @@ import {
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import type { VaultFile } from "../services/storage";
+import { useAndroidBottomInset } from "../hooks/useAndroidBottomInset";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ const rowStyles = StyleSheet.create({
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function StatsSheet({ visible, files, onClose }: StatsSheetProps) {
+  const androidBottomInset = useAndroidBottomInset();
   if (!visible) return null;
 
   const stats = useMemo(() => {
@@ -234,7 +236,7 @@ export function StatsSheet({ visible, files, onClose }: StatsSheetProps) {
             <StatRow label="Added this week" value={`${stats.thisWeek}`} />
           </View>
 
-          <View style={styles.bottomPad} />
+          <View style={[styles.bottomPad, { height: Spacing.xl + androidBottomInset }]} />
         </ScrollView>
       )}
     </Animated.View>

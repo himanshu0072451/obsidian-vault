@@ -18,6 +18,7 @@ import { PasscodeInput } from "../components/PasscodeInput";
 import { Typography } from "../utils/design";
 import { useAuth } from "../hooks/useAuth";
 import { useUnlockTransition } from "../hooks/useUnlockTransition";
+import { useAndroidBottomInset } from "../hooks/useAndroidBottomInset";
 import { UNLOCK_LAYER_WINDOWS, unlockLayerProgress } from "../utils/unlockLayers";
 
 // 'biometric' = post-setup offer screen
@@ -141,6 +142,7 @@ export default function LockScreen({
   const [step, setStep] = useState<LockStep>(isSetup ? "enter" : "setup");
   const [firstCode, setFirstCode] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const androidBottomInset = useAndroidBottomInset();
 
   const logoScale = useSharedValue(1);
   const errorOpacity = useSharedValue(0);
@@ -419,6 +421,11 @@ export default function LockScreen({
             {errorMsg}
           </Animated.Text>
         </View>
+
+        {/* Reserves extra space above the Android system nav bar (3-button
+            or gesture) so the footer above isn't crowded against it — a
+            no-op on iOS, where androidBottomInset is always 0. */}
+        <View style={{ height: androidBottomInset }} />
       </View>
     </View>
   );

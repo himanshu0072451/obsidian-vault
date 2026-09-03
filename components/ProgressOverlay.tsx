@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, ViewStyle, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, ViewStyle, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -103,6 +104,12 @@ export function ProgressOverlay({
           zIndex: 9999,
         },
       ]}
+      // Android only, bottom edge only — matches HomeScreen's SafeAreaView.
+      // iOS keeps its previous default (all edges) so its layout is
+      // unchanged; Android previously got no inset at all (core RN
+      // SafeAreaView is a no-op there), so only adding "bottom" here, never
+      // "top", keeps this scoped to the nav-bar fix.
+      edges={Platform.OS === "android" ? ["bottom"] : undefined}
     >
       <View style={styles.backdrop}>
         <Animated.View style={[styles.sheet, contentStyle]}>

@@ -37,6 +37,7 @@ import {
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import type { VaultFile } from "../services/storage";
+import { useAndroidBottomInset } from "../hooks/useAndroidBottomInset";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -209,6 +210,7 @@ export default memo(function ImageViewer({
   onDelete,
   onExportToGallery,
 }: ImageViewerProps) {
+  const androidBottomInset = useAndroidBottomInset();
   const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 
   // Visibility fade
@@ -807,7 +809,16 @@ export default memo(function ImageViewer({
 
               {/* Bottom bar — filename, date, size, album, tags */}
               {file && (
-                <View style={styles.bottomBarWrap} pointerEvents="none">
+                <View
+                  style={[
+                    styles.bottomBarWrap,
+                    {
+                      paddingBottom:
+                        (Platform.OS === "ios" ? 40 : 24) + androidBottomInset,
+                    },
+                  ]}
+                  pointerEvents="none"
+                >
                   <BlurView
                     intensity={40}
                     tint="dark"
@@ -974,7 +985,8 @@ const styles = StyleSheet.create({
   // Bottom bar — real frosted glass, filename + metadata + tags
   bottomBarWrap: {
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    // paddingBottom is computed inline at the usage site (adds the Android
+    // system-nav-bar inset on top of the base platform value).
   } as ViewStyle,
 
   bottomBar: {

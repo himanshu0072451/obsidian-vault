@@ -11,6 +11,7 @@ import {
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import type { VaultFile } from "../services/storage";
+import { useAndroidBottomInset } from "../hooks/useAndroidBottomInset";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export function FileDetailsSheet({
   file,
   onClose,
 }: FileDetailsSheetProps) {
+  const androidBottomInset = useAndroidBottomInset();
   if (!visible || file === null) return null;
 
   const displayName = file.displayName ?? file.name.replace(".vault", "");
@@ -193,7 +195,7 @@ export function FileDetailsSheet({
           </>
         )}
 
-        <View style={styles.bottomPad} />
+        <View style={[styles.bottomPad, { height: Spacing.xl + androidBottomInset }]} />
       </ScrollView>
     </Animated.View>
   );

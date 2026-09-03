@@ -21,6 +21,7 @@ import { Colors, Typography, Spacing, Radius } from "./utils/design";
 import { activate as activateScreenSecurity } from "./services/ScreenSecurityService";
 import { setDevScreenshotMode } from "./modules/dev-screenshot-mode";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import "./global.css";
 
 // ─── HomeRevealWrapper ──────────────────────────────────────────────────────
@@ -229,12 +230,14 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <OnboardingProvider>
-          <StatusBar style="light" />
-          <AppNavigator />
-        </OnboardingProvider>
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <OnboardingProvider>
+            <StatusBar style="light" />
+            <AppNavigator />
+          </OnboardingProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

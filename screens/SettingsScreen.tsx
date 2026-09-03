@@ -29,6 +29,7 @@ import { DecoySetupSheet } from "../components/DecoySetupSheet";
 import { StatsSheet } from "../components/StatsSheet";
 import { ProgressOverlay } from "../components/ProgressOverlay";
 import type { VaultFile } from "../services/storage";
+import { useAndroidBottomInset } from "../hooks/useAndroidBottomInset";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,7 @@ export default function SettingsScreen({
   } = useAuth();
   const vault = useVault();
   const { decryptToLibrary, decryptOp, resetDecrypt } = useVaultOperations();
+  const androidBottomInset = useAndroidBottomInset();
 
   const [stats, setStats] = useState<{
     files: number;
@@ -538,6 +540,11 @@ export default function SettingsScreen({
             right={<Text className="text-[15px] text-white/40">{version}</Text>}
           />
         </View>
+
+        {/* Reserves extra space above the Android system nav bar (3-button
+            or gesture) so the last row isn't crowded against it — a no-op
+            on iOS, where androidBottomInset is always 0. */}
+        <View style={{ height: androidBottomInset }} />
       </ScrollView>
 
       {/* Change Passcode overlay — stacked above this screen */}

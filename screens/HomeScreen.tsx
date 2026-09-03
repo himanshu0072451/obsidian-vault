@@ -10,7 +10,7 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
+  Platform,
   Pressable,
   ScrollView,
   ViewStyle,
@@ -18,6 +18,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { FlashList } from "@shopify/flash-list";
 import Animated, {
   FadeInDown,
@@ -1258,7 +1259,15 @@ export default function HomeScreen({
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView
+      style={styles.root}
+      // Android only: previously this used react-native's core SafeAreaView,
+      // which is a no-op on Android, so the bottom edge (SelectionActionBar,
+      // an absolute bottom:0 bar) could sit under the system nav bar. Only
+      // restricting to "bottom" on Android — iOS keeps its existing default
+      // (all edges) so its layout is unchanged.
+      edges={Platform.OS === "android" ? ["bottom"] : undefined}
+    >
       <FlashList
         data={flashListData}
         keyExtractor={flashListKeyExtractor}

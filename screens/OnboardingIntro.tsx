@@ -5,6 +5,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, ViewStyle, TextStyle } f
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import { Button } from "../components/Button";
+import { useAndroidBottomInset } from "../hooks/useAndroidBottomInset";
 
 interface SlideHint {
   title: string;
@@ -53,6 +54,7 @@ interface OnboardingIntroProps {
 
 export default function OnboardingIntro({ onDone }: OnboardingIntroProps) {
   const [index, setIndex] = useState(0);
+  const androidBottomInset = useAndroidBottomInset();
   const isFirst = index === 0;
   const isLast = index === SLIDES.length - 1;
   const slide = SLIDES[index];
@@ -139,6 +141,10 @@ export default function OnboardingIntro({ onDone }: OnboardingIntroProps) {
           style={styles.continueBtn}
         />
       </View>
+      {/* Reserves extra space above the Android system nav bar (3-button
+          or gesture) so the footer buttons aren't crowded against it — a
+          no-op on iOS, where androidBottomInset is always 0. */}
+      <View style={{ height: androidBottomInset }} />
     </View>
   );
 }

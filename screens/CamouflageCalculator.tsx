@@ -19,6 +19,7 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import { useAuth } from "../hooks/useAuth";
 import { useUnlockTransition } from "../hooks/useUnlockTransition";
+import { useAndroidBottomInset } from "../hooks/useAndroidBottomInset";
 
 type Operator = "+" | "−" | "×" | "÷";
 
@@ -68,6 +69,7 @@ export default function CamouflageCalculator({
   onUnlockTransitionEnd,
 }: CamouflageCalculatorProps) {
   const { isUnlocked, unlock, quickCheckPasscode } = useAuth();
+  const androidBottomInset = useAndroidBottomInset();
   const [display, setDisplay] = useState("0");
   const [firstOperand, setFirstOperand] = useState<number | null>(null);
   const [operator, setOperator] = useState<Operator | null>(null);
@@ -292,6 +294,10 @@ export default function CamouflageCalculator({
           <CalcButton label="=" variant="operator" onPress={performEquals} />
         </View>
       </View>
+      {/* Reserves extra space above the Android system nav bar (3-button
+          or gesture) so the bottom keypad row isn't crowded against it —
+          a no-op on iOS, where androidBottomInset is always 0. */}
+      <View style={{ height: androidBottomInset }} />
       </View>
     </Animated.View>
   );
