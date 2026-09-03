@@ -25,6 +25,7 @@ import Constants from "expo-constants";
 import { useAuth, useVault } from "../hooks/useAuth";
 import { useVaultOperations } from "../hooks/useVaultOperations";
 import { ChangePasscodeSheet } from "../components/ChangePasscodeSheet";
+import { DecoySetupSheet } from "../components/DecoySetupSheet";
 import { StatsSheet } from "../components/StatsSheet";
 import { ProgressOverlay } from "../components/ProgressOverlay";
 import type { VaultFile } from "../services/storage";
@@ -178,6 +179,9 @@ export default function SettingsScreen({
     setCamouflageModeEnabled,
     changePasscode,
     passcode,
+    vaultContext,
+    hasDecoy,
+    setupDecoy,
   } = useAuth();
   const vault = useVault();
   const { decryptToLibrary, decryptOp, resetDecrypt } = useVaultOperations();
@@ -192,6 +196,7 @@ export default function SettingsScreen({
   const [allFiles, setAllFiles] = useState<VaultFile[]>([]);
   const [showStats, setShowStats] = useState(false);
   const [showChangePasscode, setShowChangePasscode] = useState(false);
+  const [decoySheetVisible, setDecoySheetVisible] = useState(false);
 
   // Load stats on mount
   useEffect(() => {
@@ -267,6 +272,37 @@ export default function SettingsScreen({
       ],
     );
   }, [allFiles, decryptToLibrary, passcode]);
+
+  // ── Decoy Vault ───────────────────────────────────────────────────────────
+
+  const openDecoySetup = useCallback(() => {
+    if (hasDecoy) {
+      Alert.alert(
+        "Decoy Vault",
+        "Your decoy vault is already set up. Enter its passcode on the unlock screen to open it.",
+      );
+      return;
+    }
+    Alert.alert(
+      "Set Up Decoy Vault",
+      "Create a separate vault with its own passcode. Entering that passcode will open this decoy vault instead of your real one.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Continue", onPress: () => setDecoySheetVisible(true) },
+      ],
+    );
+  }, [hasDecoy]);
+
+  const handleDecoyConfirm = useCallback(
+    async (newPasscode: string): Promise<"ok" | "collision"> => {
+      const result = await setupDecoy(newPasscode);
+      if (result === "ok") {
+        setDecoySheetVisible(false);
+      }
+      return result;
+    },
+    [setupDecoy],
+  );
 
   // ── Rebuild Index ─────────────────────────────────────────────────────────
 
@@ -416,6 +452,20 @@ export default function SettingsScreen({
             onPress={() => setShowChangePasscode(true)}
             right={<Chevron />}
           />
+
+          {vaultContext === "real" && (
+            <>
+              <RowDivider />
+
+              <SettingsRow
+                icon="copy"
+                title="Decoy Vault"
+                subtitle="Keep a separate vault with another password"
+                onPress={openDecoySetup}
+                right={<Chevron />}
+              />
+            </>
+          )}
         </View>
 
         {/* ── Vault ────────────────────────────────────────────────────── */}
@@ -500,6 +550,11 @@ export default function SettingsScreen({
         visible={showStats}
         files={allFiles}
         onClose={() => setShowStats(false)}
+      />
+      <DecoySetupSheet
+        visible={decoySheetVisible}
+        onConfirm={handleDecoyConfirm}
+        onCancel={() => setDecoySheetVisible(false)}
       />
       <ProgressOverlay
         visible={decryptOp.status !== "idle"}
