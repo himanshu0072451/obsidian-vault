@@ -24,6 +24,14 @@ operation.
       <br/><sub><b>Onboarding</b></sub>
     </td>
     <td align="center" width="25%">
+      <img src="./assets/gallery/onboarding-2.jpeg" width="200" alt="Onboarding intro"/>
+      <br/><sub><b>Onboarding</b></sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./assets/gallery/onboarding-3.jpeg" width="200" alt="Onboarding intro"/>
+      <br/><sub><b>Onboarding</b></sub>
+    </td>
+    <td align="center" width="25%">
       <img src="./assets/gallery/createPasscode.jpeg" width="200" alt="Create passcode"/>
       <br/><sub><b>Create Passcode</b></sub>
     </td>
