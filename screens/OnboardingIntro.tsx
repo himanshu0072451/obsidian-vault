@@ -1,10 +1,15 @@
 // Gated on !isSetup in App.tsx — shown once, before passcode setup.
 
 import React, { useState, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet, ViewStyle, TextStyle } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet, ViewStyle, TextStyle } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Typography, Spacing, Radius } from "../utils/design";
 import { Button } from "../components/Button";
+
+interface SlideHint {
+  title: string;
+  body: string;
+}
 
 interface Slide {
   glyph: string;
@@ -12,7 +17,7 @@ interface Slide {
   title: string;
   body: string;
   warning?: string;
-  hint?: string;
+  hint?: SlideHint;
 }
 
 const SLIDES: Slide[] = [
@@ -35,7 +40,10 @@ const SLIDES: Slide[] = [
     eyebrow: "Your Vault, Your Way",
     title: "Unlock it however you like",
     body: "Use your passcode or your fingerprint or face to get in. Turn on Camouflage Mode and the app looks like an ordinary calculator until you type your real passcode. Everything stays encrypted on your device the whole time.",
-    hint: "Need a second vault? Veilo can keep a separate decoy vault with its own password, tucked away in the app once you're set up.",
+    hint: {
+      title: "Decoy Vault",
+      body: "Need a second vault? Create a separate vault with its own password. You can find it from the ⋯ menu on the home screen.",
+    },
   },
 ];
 
@@ -45,6 +53,7 @@ interface OnboardingIntroProps {
 
 export default function OnboardingIntro({ onDone }: OnboardingIntroProps) {
   const [index, setIndex] = useState(0);
+  const isFirst = index === 0;
   const isLast = index === SLIDES.length - 1;
   const slide = SLIDES[index];
 
@@ -55,6 +64,12 @@ export default function OnboardingIntro({ onDone }: OnboardingIntroProps) {
       setIndex((i) => i + 1);
     }
   }, [isLast, onDone]);
+
+  const handleBack = useCallback(() => {
+    if (!isFirst) {
+      setIndex((i) => i - 1);
+    }
+  }, [isFirst]);
 
   return (
     <View style={styles.root}>
@@ -78,32 +93,50 @@ export default function OnboardingIntro({ onDone }: OnboardingIntroProps) {
         </Pressable>
       </View>
 
-      <Animated.View
-        key={index}
-        entering={FadeIn.duration(240)}
-        exiting={FadeOut.duration(150)}
-        style={styles.content}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.glyphWrap}>
-          <Text style={styles.glyph}>{slide.glyph}</Text>
-        </View>
-        <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
-        <Text style={styles.title}>{slide.title}</Text>
-        <Text style={styles.body}>{slide.body}</Text>
-        {slide.warning && (
-          <View style={styles.warningBox}>
-            <Text style={styles.warningText}>{slide.warning}</Text>
+        <Animated.View
+          key={index}
+          entering={FadeIn.duration(240)}
+          exiting={FadeOut.duration(150)}
+          style={styles.content}
+        >
+          <View style={styles.glyphWrap}>
+            <Text style={styles.glyph}>{slide.glyph}</Text>
           </View>
-        )}
-        {slide.hint && <Text style={styles.hintText}>{slide.hint}</Text>}
-      </Animated.View>
+          <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
+          <Text style={styles.title}>{slide.title}</Text>
+          <Text style={styles.body}>{slide.body}</Text>
+          {slide.warning && (
+            <View style={styles.warningBox}>
+              <Text style={styles.warningText}>{slide.warning}</Text>
+            </View>
+          )}
+          {slide.hint && (
+            <View style={styles.hintCard}>
+              <Text style={styles.hintTitle}>{slide.hint.title}</Text>
+              <Text style={styles.hintBody}>{slide.hint.body}</Text>
+            </View>
+          )}
+        </Animated.View>
+      </ScrollView>
 
       <View style={styles.footer}>
+        {!isFirst && (
+          <Button
+            label="Back"
+            variant="secondary"
+            onPress={handleBack}
+            style={styles.backBtn}
+          />
+        )}
         <Button
           label={isLast ? "Get Started" : "Continue"}
           variant="primary"
           onPress={handleContinue}
-          fullWidth
+          style={styles.continueBtn}
         />
       </View>
     </View>
@@ -150,10 +183,14 @@ const styles = StyleSheet.create({
     letterSpacing: Typography.wide,
   } as TextStyle,
 
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
+  } as ViewStyle,
+
+  content: {
     gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
   } as ViewStyle,
 
   glyphWrap: {
@@ -209,14 +246,38 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   } as TextStyle,
 
-  hintText: {
-    fontSize: Typography.sm,
-    color: Colors.textMuted,
-    lineHeight: 19,
+  hintCard: {
     marginTop: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: 4,
+  } as ViewStyle,
+  hintTitle: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.bold,
+    color: Colors.text,
+    letterSpacing: Typography.tight,
+  } as TextStyle,
+  hintBody: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+    lineHeight: 19,
   } as TextStyle,
 
   footer: {
+    flexDirection: "row",
+    gap: Spacing.sm,
     paddingTop: Spacing.lg,
+  } as ViewStyle,
+
+  backBtn: {
+    flex: 1,
+  } as ViewStyle,
+
+  continueBtn: {
+    flex: 2,
   } as ViewStyle,
 });
